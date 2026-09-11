@@ -11,8 +11,12 @@
 # Working docs (local dogfooding state; the website lives in docs/)
 .local-docs/
 
-# devloop's own dev-time state (this repo dogfoods the convention it ships)
-.devloop/
+# devloop's own project config (this repo dogfoods the convention it ships).
+# config.md and domain.md are committed, exactly as the README instructs
+# users to do; trackers/ is in-progress local state.
+.devloop/*
+!.devloop/config.md
+!.devloop/domain.md
 
 # Node (if users clone into a node project)
 node_modules/

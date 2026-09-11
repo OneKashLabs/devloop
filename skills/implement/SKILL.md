@@ -307,9 +307,11 @@ plan is met); `red-team` is recall-biased (surfaces everything, then
 verifies). A bug conforming to a flawed plan is caught only by `red-team`;
 a correct-but-off-spec change only by `review-impl`.
 
-Merge findings. Address every `red-team` **FAIL** (CONFIRMED
-correctness) and every `review-impl` FAIL before completing; treat WARN
-as a judgment call. Re-run the suite after any fix.
+Merge findings. Address every `red-team` **FAIL** (a CONFIRMED
+correctness bug, or a CONFIRMED conventions violation with a real fault:
+security, data loss, a broken documented invariant, or a robustness gap)
+and every `review-impl` FAIL before completing; treat WARN as a judgment
+call. Re-run the suite after any fix.
 
 **No project rule file?** When neither `.devloop/config.md` nor a project
 rules file (`CLAUDE.md`/`AGENTS.md`) exists, `review-impl` still defers

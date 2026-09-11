@@ -584,7 +584,7 @@ section "16. No em or en dashes in published files"
 # Scan every published markdown file (core skill/agent prose plus the
 # top-level docs). docs/ is not part of the release, so it is out of scope.
 # (Arrows U+2192 are used deliberately and are not flagged.)
-em_dash_files=("${core_files[@]}" "README.md" "CHANGELOG.md" "PRIVACY.md" examples/*/config.md examples/*/domain.md)
+em_dash_files=("${core_files[@]}" "README.md" "CHANGELOG.md" "PRIVACY.md" "AGENTS.md" ".devloop/config.md" ".devloop/domain.md" examples/*/config.md examples/*/domain.md)
 
 em_dash_found=false
 for file in "${em_dash_files[@]}"; do
@@ -667,6 +667,179 @@ if grep -Eqi "report[- ]only" "$implement_skill"; then
     pass "implement SKILL.md invokes the split mode: cleanup run report-only"
 else
     fail "implement SKILL.md Phase 3 must invoke the large-diff mode: cleanup run report-only (keeps the parallel gate read-only)"
+fi
+
+# ─────────────────────────────────────────────
+section "19. devloop dogfoods its own config convention"
+# ─────────────────────────────────────────────
+
+# The README instructs users to commit .devloop/config.md and domain.md, and
+# this repo runs its own loop on itself, so those files must exist here and
+# carry the same schema the examples do. Without them red-team's conventions
+# angle has nothing to read when it reviews a devloop diff, which is how the
+# gap was found in the first place.
+for own_cfg in ".devloop/config.md" ".devloop/domain.md"; do
+    if [[ -f "$own_cfg" ]]; then
+        pass "$own_cfg exists (repo dogfoods the convention it ships)"
+    else
+        fail "$own_cfg is missing; the README tells users to commit it, so this repo must too"
+    fi
+done
+
+# Reuse section 9's heading lists rather than restating them, the same
+# single-canonical-source rule this repo asks of its own docs.
+if [[ -f ".devloop/config.md" ]]; then
+    for section_name in "${implement_sections[@]}"; do
+        if grep -q "$section_name" ".devloop/config.md"; then
+            pass ".devloop/config.md has \"$section_name\""
+        else
+            fail ".devloop/config.md missing \"$section_name\""
+        fi
+    done
+fi
+
+if [[ -f ".devloop/domain.md" ]]; then
+    for section_name in "${spec_sections[@]}"; do
+        if grep -q "$section_name" ".devloop/domain.md"; then
+            pass ".devloop/domain.md has \"$section_name\""
+        else
+            fail ".devloop/domain.md missing \"$section_name\""
+        fi
+    done
+fi
+
+# The root project-rules file is what red-team's conventions angle reads
+# first, and it is the harness-native one (both Claude Code and Codex pick it
+# up). It must point at config.md so the rules keep one canonical home.
+if [[ -f "AGENTS.md" ]]; then
+    pass "AGENTS.md exists (harness-native project rules)"
+    if grep -q "\.devloop/config\.md" "AGENTS.md"; then
+        pass "AGENTS.md points at .devloop/config.md (rules have one home)"
+    else
+        fail "AGENTS.md must point at .devloop/config.md so the rules are not duplicated"
+    fi
+else
+    fail "AGENTS.md is missing; red-team's conventions angle reads it first"
+fi
+
+# The committed config is only reachable if .gitignore un-ignores it.
+if grep -q '^!\.devloop/config\.md' .gitignore && grep -q '^!\.devloop/domain\.md' .gitignore; then
+    pass ".gitignore un-ignores .devloop/config.md and domain.md"
+else
+    fail ".gitignore must un-ignore .devloop/config.md and .devloop/domain.md (trackers stay ignored)"
+fi
+
+# ─────────────────────────────────────────────
+section "20. red-team angle counts stay in sync across docs"
+# ─────────────────────────────────────────────
+
+# agents/red-team.md is the source of truth: correctness angles are lettered
+# headers (Angle A..E), cleanup angles are four named headers. Every doc that
+# states a count must match it, or a future angle edit silently leaves the
+# docs claiming the wrong number, the exact drift the self-application eval
+# flagged (README, docs, and SKILL.md all said "5 angles" while a patch made
+# it 6). The counts are derived from red-team.md so the doc checks self-update;
+# the 5+4 pin below is the tripwire that a deliberate angle change trips.
+rt="agents/red-team.md"
+c_angles=$(grep -cE '^\*\*Angle [A-Z]:' "$rt")
+k_angles=$(grep -cE '^\*\*(Reuse|Simplification|Efficiency|Altitude)\.' "$rt")
+total_angles=$((c_angles + k_angles))
+words=("" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine")
+c_word="${words[$c_angles]:-$c_angles}"
+
+if [[ "$c_angles" -eq 5 && "$k_angles" -eq 4 ]]; then
+    pass "red-team.md defines 5 correctness + 4 cleanup angles"
+else
+    fail "red-team.md now has $c_angles correctness + $k_angles cleanup angles (was 5 + 4); if intended, update this pin AND every doc count (README, docs/llms.txt, skills/implement/SKILL.md, red-team.md mode table)"
+fi
+
+if grep -qE "all $total_angles angles" "$rt"; then
+    pass "red-team.md mode table says \"all $total_angles angles\""
+else
+    fail "red-team.md mode table must say \"all $total_angles angles\" ($c_angles+$k_angles)"
+fi
+
+if grep -qE "\*\*Correctness\*\* \($c_angles angles\)" README.md; then
+    pass "README states Correctness ($c_angles angles)"
+else
+    fail "README must say \"**Correctness** ($c_angles angles)\" to match red-team.md"
+fi
+
+if grep -qE "\*\*Cleanup\*\* \($k_angles angles\)" README.md; then
+    pass "README states Cleanup ($k_angles angles)"
+else
+    fail "README must say \"**Cleanup** ($k_angles angles)\" to match red-team.md"
+fi
+
+if grep -qE "bugs \($c_angles angles\)" skills/implement/SKILL.md; then
+    pass "implement SKILL.md states bugs ($c_angles angles)"
+else
+    fail "skills/implement/SKILL.md must say \"bugs ($c_angles angles)\" to match red-team.md"
+fi
+
+if grep -qE "across $c_word angles" docs/llms.txt; then
+    pass "docs/llms.txt says \"across $c_word angles\""
+else
+    fail "docs/llms.txt must say \"across $c_word angles\" to match red-team.md"
+fi
+
+# ─────────────────────────────────────────────
+section "21. Agent Plugins root manifest conformance and cross-manifest consistency"
+# ─────────────────────────────────────────────
+
+# devloop ships three manifests: .claude-plugin/plugin.json (Claude Code),
+# .codex-plugin/plugin.json (Codex), and a root plugin.json in the vendor-
+# neutral Agent Plugins format (agent-plugins.org 1.0.0). Three manifests
+# means three version + description surfaces,
+# the exact drift .devloop/config.md warns about, so this section validates
+# the root manifest against the spec's fatal rules AND pins version and
+# description identical across all three.
+
+if [[ -f plugin.json ]] && python3 -m json.tool plugin.json > /dev/null 2>&1; then
+    pass "root plugin.json is valid JSON"
+else
+    fail "root plugin.json is missing or invalid JSON"
+fi
+
+# Agent Plugins 1.0.0 fatal rules: required [$schema, name], $schema is the
+# canonical const, name matches the spec pattern, top level is a closed field
+# set, and author (if present) carries only name/email/url.
+if python3 - <<'PY' 2>/dev/null
+import json, re, sys
+d = json.load(open("plugin.json"))
+allowed = {"$schema","name","version","description","author","homepage",
+           "repository","license","keywords","extensions"}
+const = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+name = d.get("name", "")
+ok = (
+    d.get("$schema") == const
+    and "name" in d
+    and not (set(d) - allowed)
+    and 1 <= len(name) <= 64
+    and re.match(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$", name)
+    and (not isinstance(d.get("author"), dict)
+         or not (set(d["author"]) - {"name","email","url"}))
+)
+sys.exit(0 if ok else 1)
+PY
+then
+    pass "root plugin.json conforms to Agent Plugins 1.0.0 (schema const, name pattern, closed fields)"
+else
+    fail "root plugin.json violates Agent Plugins 1.0.0 (check \$schema const, name pattern, no unknown top-level fields, author fields)"
+fi
+
+# Version identical across all three manifests.
+if python3 -c "import json; v={json.load(open(p)).get('version') for p in ['plugin.json','.claude-plugin/plugin.json','.codex-plugin/plugin.json']}; import sys; sys.exit(0 if len(v)==1 and None not in v else 1)" 2>/dev/null; then
+    pass "version matches across all three manifests"
+else
+    fail "version must be identical in plugin.json, .claude-plugin/plugin.json, and .codex-plugin/plugin.json"
+fi
+
+# Description identical across all three manifests (the canonical blurb).
+if python3 -c "import json; s={json.load(open(p)).get('description') for p in ['plugin.json','.claude-plugin/plugin.json','.codex-plugin/plugin.json']}; import sys; sys.exit(0 if len(s)==1 and None not in s else 1)" 2>/dev/null; then
+    pass "description matches across all three manifests"
+else
+    fail "description must be verbatim identical across all three manifests (single canonical blurb)"
 fi
 
 # ─────────────────────────────────────────────

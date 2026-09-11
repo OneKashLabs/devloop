@@ -87,7 +87,8 @@ the plan's acceptance criteria are the highest-value ones.
 Work through the angles for your mode, in sequence, in this context. (If you
 have a task/subagent tool available, you may fan out, one angle per worker,
 launched concurrently, but sequential in-context is the default and is
-correct.) Each angle surfaces up to ~6 candidates. For every candidate record:
+correct.) Each angle surfaces every candidate with a nameable failure, no
+fixed limit. For every candidate record:
 
 - `file`, `line`
 - `summary`, one sentence stating the defect
@@ -139,7 +140,7 @@ wrapper forwards all the methods the callers actually use.
 
 These hunt for cleanup in the changed code, not bugs. State the concrete
 cost in `failure_scenario`, not a crash. Correctness always outranks cleanup
-when the output cap forces a cut.
+when you rank the final report.
 
 **Reuse.**
 Flag new code that re-implements something the codebase already has, Grep
@@ -232,8 +233,8 @@ a guard or anchor; second-tier footguns (a default evaluated once, hash
 non-determinism, lock-scope shrink, predicate methods with side effects);
 setup/teardown asymmetry in tests; config defaults flipped.
 
-Surface up to 8 additional candidates, each naming a defect not already on
-the list, and verify each with the Phase 2 rule. If nothing new, return an
+Surface every additional candidate you find, each naming a defect not already
+on the list, and verify each with the Phase 2 rule. If nothing new, return an
 empty sweep, do not pad.
 
 ---
@@ -254,9 +255,18 @@ most-severe first, correctness before cleanup. For each:
 
 End with a one-line verdict for the calling skill's gate:
 
-- **PASS**, no CONFIRMED correctness findings; only cleanup or PLAUSIBLE.
-- **WARN**, PLAUSIBLE correctness findings, or cleanup worth addressing.
-- **FAIL**, one or more CONFIRMED correctness findings.
+- **PASS**, no CONFIRMED correctness findings and no CONFIRMED conventions
+  violation that names a real fault; only cleanup, PLAUSIBLE, or purely
+  stylistic conventions findings.
+- **WARN**, PLAUSIBLE correctness findings, cleanup worth addressing, or a
+  CONFIRMED conventions finding that is purely stylistic (naming, commit-message
+  format, doc location).
+- **FAIL**, one or more CONFIRMED correctness findings, or a CONFIRMED
+  conventions finding whose failure scenario is a genuine fault: security,
+  data loss, a broken documented invariant, or a robustness gap such as a
+  missing rate limit or an unbounded query. A quotable standard broken with
+  real consequence blocks the gate exactly as a correctness bug does; only
+  style-preference violations stay at WARN.
 
 Do not modify code in `bugs`/`both` mode. You report; the caller decides.
 

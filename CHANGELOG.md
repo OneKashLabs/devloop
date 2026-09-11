@@ -1,5 +1,67 @@
 # Changelog
 
+## 3.2.0
+
+Sharpens the `red-team` gate, validated by a defect-injection eval (11 arms:
+A/B on planted and clean diffs, plus a self-application arm). The eval also
+refuted two candidate additions (an external-compat angle and blindspot-probe
+handling): the shipped gate already caught those defect classes, so neither
+shipped. The eval's self-application arm also surfaced that this repo never
+committed its own `.devloop/` config, fixed here.
+
+### Added
+- **Landing site under `docs/`.** A GitHub Pages site (`docs/index.html`,
+  `docs/llms.txt`, and an FAQ) describing the loop, the gates, and install,
+  served from the repo. Shipped after 3.1.1 and carried in this release.
+- **devloop dogfoods its own config convention.** The README instructs users
+  to commit `.devloop/config.md` and `domain.md`, but this repo gitignored the
+  whole `.devloop/` directory, so `red-team`'s conventions angle returned
+  nothing on every self-review it had ever run. Both files are now committed
+  (`.gitignore` un-ignores them and keeps `trackers/` local state), alongside
+  a short harness-native `AGENTS.md` that points at them so the rules keep one
+  canonical home. `config.md`'s §Standards to Verify deliberately carries only
+  the rules `validate.sh` cannot mechanize, each traceable to the release that
+  fixed it; the deterministic checks are not restated, since a mechanical gate
+  beats an advisory rule.
+- **`validate.sh` section 19** asserts both files exist, carry the same schema
+  headings required of the `examples/` configs, that `AGENTS.md` points at
+  `config.md`, and that `.gitignore` still un-ignores them.
+- **`validate.sh` section 20** derives the red-team angle counts from
+  `agents/red-team.md` (5 correctness + 4 cleanup) and fails if the README,
+  `docs/llms.txt`, `skills/implement/SKILL.md`, or the red-team mode table
+  state a different number, closing the doc-drift gap the self-application
+  eval flagged.
+- **Vendor-neutral Agent Plugins manifest.** Added a root `plugin.json` in the
+  [Agent Plugins](https://agent-plugins.org) 1.0.0 format (the cross-vendor
+  standard backed by Amazon, Cursor, Microsoft, OpenAI, and Vercel; Kiro has
+  announced support) alongside the existing Claude Code and Codex manifests.
+  devloop's `skills/` layout was already conformant; this adds the manifest,
+  validated against the published schema, so the three skills are structured
+  to install on any Agent Plugins client.
+  Claude Code and Codex are unaffected: each reads its own manifest and ignores
+  the root one (verified with `claude plugin validate --strict`).
+- **`validate.sh` section 21** validates the root `plugin.json` against the
+  Agent Plugins 1.0.0 fatal rules (schema const, `name` pattern, closed field
+  set, author fields) and pins `version` and `description` identical across all
+  three manifests, closing a drift surface that was previously unchecked even
+  between the two existing manifests. The suite is now 244 checks, up from 219.
+
+### Changed
+- **Convention faults now block the gate.** The Phase 4 verdict ladder in
+  `red-team` FAILs on a CONFIRMED conventions finding whose failure scenario is
+  a genuine fault (security, data loss, a broken documented invariant, or a
+  robustness gap such as a missing rate limit or an unbounded query). Purely
+  stylistic conventions findings (naming, commit-message format, doc location)
+  stay at WARN. Previously only CONFIRMED *correctness* findings could FAIL, so
+  a real standards violation with no correctness face could pass the
+  `/implement` gate. The gate wording in the `/implement` skill matches, and
+  the README and `docs/` now describe the conventions angle as a
+  gate-blocking check that runs in every mode, not a cleanup-only one.
+- **No fixed cap on findings.** Removed the `~6 per angle` / `up to 8
+  additional` numeric limits in `red-team`, replaced with "surface every
+  candidate with a nameable failure." Aligns the prompt with its own
+  surface-everything-then-verify stance; the no-pad discipline is unchanged.
+
 ## 3.1.1
 
 Documentation and consistency fixes surfaced by two independent

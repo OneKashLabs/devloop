@@ -128,10 +128,13 @@ in a fresh context and runs a two-family review:
 - **Correctness** (5 angles): line-by-line diff scan, removed-behavior
   auditor, cross-file caller/callee tracer, language-pitfall
   specialist, wrapper/proxy correctness.
-- **Cleanup** (4 angles): reuse, simplification, efficiency, altitude,
-  plus a conventions angle that reads the project's own rules file
-  (`CLAUDE.md`/`AGENTS.md`) and `.devloop/config.md` at runtime and only
-  flags rules it can quote.
+- **Cleanup** (4 angles): reuse, simplification, efficiency, altitude.
+- **Conventions** (runs in every mode): reads the project's own rules
+  file (`CLAUDE.md`/`AGENTS.md`) and `.devloop/config.md` at runtime and
+  flags only rules it can quote. A quotable violation with a real fault
+  (security, data loss, a broken documented invariant, a robustness gap)
+  **FAILs** the gate like a correctness bug; a pure style violation stays
+  a warning.
 
 It then **verifies** each candidate (recall-biased: PLAUSIBLE by
 default, REFUTED only when the code proves it) and **sweeps** once more
@@ -141,8 +144,8 @@ It takes a mode:
 
 | Mode | What it does |
 |---|---|
-| `bugs` | correctness angles only, then verify + sweep |
-| `cleanup` | quality angles only, the tidy pass; can apply fixes (report-only when run as a gate) |
+| `bugs` | the 5 correctness angles + conventions, then verify + sweep |
+| `cleanup` | the 4 cleanup angles + conventions, the tidy pass; can apply fixes (report-only when run as a gate) |
 | `both` *(default)* | everything |
 
 ```
@@ -186,6 +189,15 @@ harnesses; Codex registers skills, not agents, so the three review agents
 under `agents/` ride along as prompt files: the skills spawn them as
 subagents where the harness supports delegation, and otherwise degrade to
 the in-context self-check the gates already document.
+
+**Other Agent Plugins clients.** The repo root also carries a `plugin.json`
+in the vendor-neutral [Agent Plugins](https://agent-plugins.org) 1.0.0 format,
+validated against the published schema, so the three skills are structured to
+install on clients that adopt the standard (Kiro, for one, has [announced
+support](https://kiro.dev/blog/powers-supports-plugins/)). Clients that support
+subagent delegation get the isolated-context review; the rest degrade to the
+self-check, the same as Codex. Claude Code and Codex read their own manifests
+and ignore this one.
 
 Then give the loop project context in a `.devloop/` directory at your
 project root:
@@ -242,6 +254,25 @@ regression run in `rung run --rung 1` and gate CI on `rung gate`
 CI-enforceable proof that the checks were real.
 
 ## Related Work
+
+devloop sits inside the conversation about an *AI-native software development
+lifecycle*. Anthropic's [AI-Native SDLC
+playbook](https://claude.com/blog/the-ai-native-sdlc-playbook) reframes the
+classic six stages (Plan, Design, Build, Test, Deploy, Maintain) as a loop in
+which each stage commits a version-controlled artifact the next stage reads,
+and governance is enforced as the agent works rather than discovered in a late
+review. devloop is a concrete implementation of that loop's inner stages:
+`/spec` commits a spec, `/plan` commits a reviewed JSON tracker, and
+`/implement` builds test-first behind review agents that grade the work in a
+context that did not write it. The committed-artifact chain and the
+fresh-context reviewer are devloop's spine, not extras, so the playbook
+describes a shape devloop already has.
+
+What devloop deliberately does not own: deploy gates, production monitoring,
+incident-to-eval loops, and harness-level enforcement hooks. Those are real
+parts of an AI-native SDLC, better served by the harness (managed settings,
+hooks) or your CI. devloop owns the specify-plan-build-review core and stops
+there on purpose.
 
 [GitHub Spec Kit](https://github.com/github/spec-kit) is a spec-driven
 development toolkit in the same space, with a comparable specify -> plan ->
