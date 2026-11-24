@@ -40,24 +40,25 @@ not write the plan or the code.
 Changes in 4.0, including what breaks for 3.x users (`red-team` is gone;
 use `review-impl` lenses): [CHANGELOG.md](CHANGELOG.md).
 
-## Why not a single prompt?
+## Ad-hoc prompting vs devloop
 
-You can tell a coding agent to "build feature X" in one prompt, and it
-can return working code. A single prompt does not give you the steps
-around the code:
+Ad-hoc prompting means a run of prompts, perhaps plan mode, and a
+`CLAUDE.md` or `AGENTS.md` for the project's rules. It leaves the steps
+around the code to you:
 
-- One pass decides what to build, how, and writes the code. A misread
-  requirement or a wrong abstraction is decided and written as code at
-  once, where it costs the most to undo.
-- The author grades its own work. "I verified it works," from the context
-  that just wrote the code, is a self-report. The context that wrote the
-  code does not question its own assumptions.
-- A long session degrades and a resumed one starts cold, so the plan and
-  the reasoning behind it are lost.
-- With no hard gate, an agent can report "done" without a test that proves
-  it.
-- Prompts don't persist. They live in your head and drift from run to run
-  and project to project.
+- Requirements and design get settled while the code is being written.
+  `/spec` and `/plan` settle them first, and you approve the reviewed plan
+  before any code.
+- The session that wrote the code also reviews it. devloop reviews the plan
+  and the code in a context that didn't write them.
+- The plan lives in the conversation, and compaction or a new session loses
+  detail. devloop keeps it in a tracker file that survives a reset.
+- "Done" can arrive without a test for each requirement. Chunks with logic
+  start from a failing test, and the review checks each acceptance
+  criterion against a test.
+- You ask for tests first, a review and a pause before commit, again each
+  session. devloop builds the process in, and an `## Autonomy` section sets
+  how much runs without asking.
 
 ## What the review layer adds
 
