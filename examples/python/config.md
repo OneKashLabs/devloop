@@ -25,34 +25,43 @@ ruff check src/
 # or: flake8 src/
 ```
 
+**Pre-review checks** (run by `/implement` before the code review; fix what they report):
+
+- `ruff check src/`
+- `mypy src/`
+
+**Verify recipe** (followed before checkpoint 2 to see the change working):
+
+- Run the entry point the diff touches with inputs that hit the changed code; check the output and the exit code
+
 ---
 
 ## Architecture Patterns
 
-- **Layered architecture:** View/Route -> Service -> Repository
-- **Views handle HTTP** - serialization, status codes, auth checks
-- **Services contain business logic** - framework-agnostic
-- **Repositories abstract data access** - ORM, raw SQL, external APIs
-- **Dependency injection via constructor** - or FastAPI's Depends()
-- **Protocol classes for interfaces** - test doubles implement Protocol
-- **Pydantic models for validation** at system boundaries
+- Layered architecture: View/Route -> Service -> Repository
+- Views handle HTTP: serialization, status codes, auth checks
+- Services contain business logic: framework-agnostic
+- Repositories abstract data access: ORM, raw SQL, external APIs
+- Dependency injection via constructor or FastAPI's Depends()
+- Protocol classes for interfaces: test doubles implement Protocol
+- Pydantic models for validation at system boundaries
 
 ---
 
-## Standards to Verify (Quality Checklist §4)
+## Standards to Verify (Quality Checklist §6)
 
 - [ ] All business logic in service layer (not in views/routes)
 - [ ] Input validation with Pydantic models at API boundaries
 - [ ] Custom exception classes (not bare Exception)
-- [ ] Async functions properly awaited (no fire-and-forget)
+- [ ] Every async call awaited (no fire-and-forget)
 - [ ] Database queries use ORM or parameterized SQL (no f-strings)
 - [ ] Type hints on all public functions
 - [ ] Context managers for resource cleanup (with statements)
-- [ ] Proper HTTP status codes in responses
+- [ ] HTTP status codes match the result
 
 ---
 
-## Blindspots to Check (Quality Checklist §8)
+## Blindspots to Check (Quality Checklist §5)
 
 - [ ] SQL injection - parameterized queries everywhere
 - [ ] N+1 queries - use select_related/joinedload for relations
@@ -93,4 +102,5 @@ reads and writes:
 ```text
 spec-directory:    docs/specs/          # where /spec writes and /plan reads (default)
 tracker-directory: .devloop/trackers/   # where /plan writes impl-tracker-<feature>.json (default)
+done-trackers:     keep                 # keep | archive | delete a finished tracker (default keep)
 ```

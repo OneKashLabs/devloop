@@ -11,167 +11,174 @@ specify, plan, implement, with independent review agents that catch
 design bugs before coding and correctness bugs before commit.
 
 ```
-/spec          Clarify WHAT to build (user stories, acceptance criteria)
-    ↓            spec validation gate (8-point checklist)
-/plan          Plan HOW to build it (chunks, dependencies, tracker)
-    ↓
-review-plan    Independent agent validates the plan (8-point review)
+/spec          Clarify what to build (user stories, acceptance criteria),
+    ↓            or check an existing design doc (spec validation gate)
+/plan          Plan how to build it (chunks, dependencies, tracker);
+    ↓            a bug fix starts with a proof: a failing test or probe
+review-plan    Independent agent reviews the plan; review, fix and
+    ↓            re-review run unattended, up to 3 rounds by default
+checkpoint 1   You approve the reviewed plan and every decision it made
     ↓
 /implement     Build it with TDD (failing test → code → pass), per chunk
     ↓
-review-impl    Independent agent verifies implementation matches plan
-   +
-red-team       Independent agent hunts bugs + cleanups in the diff
+review-impl    Independent agent reviews the diff: conformance,
+    ↓            correctness and cleanup lenses
+checkpoint 2   You approve the findings and fixes, then finish steps run
    │
-   └─ converge  If a review finding invalidates the *plan* (not just the
+   └─ converge  If a review finding invalidates the plan (not only the
       (back-edge) code), /implement appends corrective chunks, re-gates
-                 via the review-plan agent in-session, then resumes
+                 them via the review-plan agent and builds them, up to
+                 the round limit (Convergence: auto, the default)
 ```
 
-Three commands, three gates, one per command: `/spec` (WHAT), `/plan`
-(HOW), `/implement` (BUILD). The review agents run in a context that did
-not write the plan or code, so their verdict is independent, not the author
-grading itself.
+Small fixes take the fast lane (no tracker): `/plan` checks the size at the
+end of its analysis and takes it itself; see `/plan`'s sizing table.
 
-## Why not just prompt the AI?
+Each command ends at a gate. The review agents run in a context that did
+not write the plan or the code.
+
+Changes in 4.0, including what breaks for 3.x users (`red-team` is gone;
+use `review-impl` lenses): [CHANGELOG.md](CHANGELOG.md).
+
+## Why not a single prompt?
 
 You can tell a coding agent to "build feature X" in one prompt, and it
-will often return working code. What a single prompt cannot give you is
-everything *around* the code:
+can return working code. A single prompt does not give you the steps
+around the code:
 
-- **One pass conflates what, how, and build.** A misread requirement or a
-  wrong abstraction gets decided and written as code in the same breath,
-  where it is most expensive to unwind.
-- **The author grades its own work.** "I verified it works," from the
-  context that just wrote the code, is a self-report, not a review, it is
-  blind to its own assumptions.
-- **Context is fragile.** A long session degrades and a resumed one starts
-  cold, so the plan and the reasoning behind it evaporate.
-- **Ungated agents report optimistically.** With no hard gate, "done"
-  tends to mean "I stopped," not "a test proves it."
-- **Prompts do not compose or persist.** They live in your head and drift
-  from run to run and project to project.
-
-devloop closes these gaps: it separates WHAT / HOW / BUILD into three
-gated steps, runs review in a context that did not write the code,
-persists a tracker so work survives resets, makes every gate an
-evidence-backed hard-stop, and ships as a versioned artifact that behaves
-the same across projects and harnesses.
+- One pass decides what to build, how, and writes the code. A misread
+  requirement or a wrong abstraction is decided and written as code at
+  once, where it costs the most to undo.
+- The author grades its own work. "I verified it works," from the context
+  that just wrote the code, is a self-report. The context that wrote the
+  code does not question its own assumptions.
+- A long session degrades and a resumed one starts cold, so the plan and
+  the reasoning behind it are lost.
+- With no hard gate, an agent can report "done" without a test that proves
+  it.
+- Prompts don't persist. They live in your head and drift from run to run
+  and project to project.
 
 ## What the review layer adds
 
-- **Design bugs are caught before coding starts.** An 8-point plan
-  review runs before any code is written. Fixing a wrong abstraction
-  in a plan costs minutes; in code, hours.
-- **Two complementary reviews at the end, not one.** `review-impl`
-  checks *conformance*, does the code match the plan, and does a test
-  prove each acceptance criterion (CONFIRMED / PLAUSIBLE / REFUTED,
-  each with a quoted line)? `red-team` checks *correctness*, is the diff
-  wrong or wasteful, regardless of the plan? The two are scoped to not
-  overlap: `review-impl` defers correctness, robustness, standards, and
-  cleanup to `red-team`. A bug that faithfully implements a flawed plan
-  is caught only by `red-team`; a correct-but-off-spec change only by
-  `review-impl`. On a large, multi-file diff the `red-team` half fans
-  into a focused bugs pass and a focused cleanup pass in parallel; on a
-  small diff it stays a single `both` pass (see below).
-- **The bug hunter is recall-biased, then verified.** `red-team`
-  surfaces candidate defects freely (conservative reviewers
-  under-report), then runs a verify pass that keeps only
-  CONFIRMED/PLAUSIBLE findings and drops the rest, trading a noisier
-  find phase for higher recall without shipping the false positives.
+- A plan review runs before any code is written.
+- `review-impl` checks the diff through three lenses: conformance,
+  correctness and cleanup (see The `review-impl` agent below). A bug that
+  follows a flawed plan is caught only by the correctness lens; a correct
+  change that is off spec only by conformance.
+- The correctness lens first lists every candidate defect, then a verify
+  pass keeps only CONFIRMED and PLAUSIBLE findings.
+- Both reviews use one list of six concerns in three groups: does the
+  change do what was asked (completeness, correctness, regression), does
+  it hold up (robustness, blindspots such as security and privacy), and
+  can it be maintained (project rules, boundaries, stale docs,
+  configuration, dependencies). Each checklist item sits under one
+  concern.
+- `/spec` asks about the non-functional requirements that apply
+  (performance, security, accessibility and others) and records each with
+  a number and a way to verify it, so it becomes an acceptance criterion
+  the review checks.
 
 ## How the loop works
 
 The loop is not strictly linear. If an `/implement` review finding
 invalidates the plan itself (a chunk's whole approach is wrong, or the
 review surfaces work no chunk covers), `/implement` converges: it appends
-corrective chunks to the tracker and re-runs the plan-review gate by
-spawning the `review-plan` agent in-session (not by re-invoking `/plan`,
-which would regenerate the tracker), then resumes building. That keeps the
-plan and the code from drifting apart.
+corrective chunks to the tracker, re-runs the plan-review gate by spawning
+the `review-plan` agent in-session (not by re-invoking `/plan`, which would
+regenerate the tracker), and builds them once that gate passes. By default
+this runs without asking, at most as many times per session as the review
+rounds allow, and checkpoint 2 lists every correction it made; set
+`Convergence: ask` to approve each one first. A finding that the *spec*
+was wrong always comes to you.
 
-**Skills vs agents.** The user-facing, interactive steps are skills
-(`/spec`, `/plan`, `/implement`); the isolated steps that return a
-verdict are agents (`review-plan`, `review-impl`, `red-team`). The split
-is by the nature of the work, not by a harness quirk, so it ports across
-harnesses. It also means the loop is three user invocations, one per
-command; a skill cannot call another skill, and coupling them into one
-agent would tie the loop to a single harness.
+The interactive steps are skills (`/spec`, `/plan`, `/implement`); the
+isolated steps that return a verdict are agents (`review-plan`,
+`review-impl`). The split follows the kind of work, so it ports across
+harnesses. It also means you start each of the three commands yourself: a
+skill can't call another skill, and coupling them into one agent would tie
+the loop to a single harness.
 
 The gates depend on spawning those agents. On a harness with no subagent
 capability at all, each gate degrades to an in-context self-check and
-loses the author-evaluator isolation; the skills say so at each gate
-rather than pretending the guarantee still holds.
+loses the author-evaluator isolation; the skills state this at each gate.
 
-## What's Included
+## What's included
 
 | Piece | Type | Invocation | Purpose |
 |-------|------|-----------|---------|
 | [spec](skills/spec/SKILL.md) | Skill | `/spec <feature>` | User stories, acceptance criteria, edge cases |
 | [plan](skills/plan/SKILL.md) | Skill | `/plan <feature>` | Chunk decomposition, dependency graph, JSON tracker, plan-review gate |
-| [implement](skills/implement/SKILL.md) | Skill | `/implement <feature>` | TDD chunk cycle against the tracker, 8-point quality gate |
-| [review-plan](agents/review-plan.md) | Agent | auto (`/plan`; `/implement` convergence) | 8-point plan review in fresh context |
-| [review-impl](agents/review-impl.md) | Agent | auto (`/implement` Phase 3) | Verifies implementation matches plan |
-| [red-team](agents/red-team.md) | Agent | auto (`/implement` Phase 3) / manual | Adversarial diff review, bugs + cleanup |
+| [implement](skills/implement/SKILL.md) | Skill | `/implement <feature>` | TDD chunk cycle against the tracker, code-review gate |
+| [review-plan](agents/review-plan.md) | Agent | auto (`/plan`; `/implement` convergence) | Plan review in fresh context (six concerns plus TDD quality) |
+| [review-impl](agents/review-impl.md) | Agent | auto (`/implement` Phase 3) / manual | Code review in fresh context: conformance, correctness and cleanup lenses |
 
-**Reviewing arbitrary changes.** `review-impl` is a *conformance* gate:
-it checks code against a plan, so it needs a tracker to review against.
-To review an ad-hoc diff with no plan (a hotfix, someone else's branch),
-invoke `red-team` directly, it is plan-agnostic and discovers the
-project's standards at runtime.
+### Reviewing any diff
 
-## The `red-team` agent
+To review a diff with no plan (a hotfix, someone else's branch), invoke
+`review-impl` with the diff range and say there is no tracker. It won't
+look for one; conformance checks the change against the request you state,
+and the correctness and cleanup lenses discover the project's standards at
+runtime.
 
-`red-team` is the plugin's bug-and-cleanup reviewer. It reads the diff
-in a fresh context and runs a two-family review:
+## The `review-impl` agent
 
+`review-impl` is the plugin's code reviewer. It reads the diff in a fresh
+context, read-only, through three lenses:
+
+- **Conformance**: the change does what the plan says, and each acceptance
+  criterion is marked confirmed (a quoted test asserts it), plausible (the
+  code does it but no test asserts it) or refuted.
 - **Correctness** (5 angles): line-by-line diff scan, removed-behavior
   auditor, cross-file caller/callee tracer, language-pitfall
   specialist, wrapper/proxy correctness.
-- **Cleanup** (4 angles): reuse, simplification, efficiency, altitude.
-- **Conventions** (runs in every mode): reads the project's own rules
+- **Cleanup** (5 angles): reuse, simplification, efficiency, altitude,
+  maintainability (stale docs, hard-coded environment values, dependency
+  and versioning rules, error messages).
+- **Conventions** (runs in every lens): reads the project's own rules
   file (`CLAUDE.md`/`AGENTS.md`) and `.devloop/config.md` at runtime and
   flags only rules it can quote. A quotable violation with a real fault
   (security, data loss, a broken documented invariant, a robustness gap)
-  **FAILs** the gate like a correctness bug; a pure style violation stays
+  fails the gate like a correctness bug; a pure style violation stays
   a warning.
 
-It then **verifies** each candidate (recall-biased: PLAUSIBLE by
-default, REFUTED only when the code proves it) and **sweeps** once more
-for gaps the first pass missed.
+Each report ends with one JSON list of findings. The session that wrote
+the code joins the lists from all lenses and records what it did with each
+finding (fixed, skipped or no change needed). When the project's config names a
+`Verify recipe`, the author also drives the change end to end before the
+second checkpoint and shows you the result; it is evidence for you, not an
+approval, so the reviewers still gate the code.
 
-It takes a mode:
+Correctness findings are verified (PLAUSIBLE by default, REFUTED only
+when the code proves it), then a sweep looks for gaps the first pass
+missed. Each finding says whether the change introduced it or it was
+pre-existing; a pre-existing bug is reported,
+not fixed in the change, and never fails the gate on its own.
 
-| Mode | What it does |
-|---|---|
-| `bugs` | the 5 correctness angles + conventions, then verify + sweep |
-| `cleanup` | the 4 cleanup angles + conventions, the tidy pass; can apply fixes (report-only when run as a gate) |
-| `both` *(default)* | everything |
+It takes `lenses`: `conformance`, `correctness`, `cleanup`, or `all`
+(default).
 
 ```
-Use the red-team agent in mode: both to review the changed files
-Use the red-team agent in mode: cleanup to tidy the changed files
+Use the review-impl agent with lenses: all to review implementation against [tracker]
+Use the review-impl agent with lenses: cleanup on HEAD~3..HEAD, no tracker
 ```
 
-**Size-adaptive at the `/implement` gate.** Phase 3 sizes the diff the
-same way `/plan` sizes work: a single-file change (or a trivial one with
-no new logic) runs one `red-team` in `mode: both`; a multi-file or
-cross-cutting diff splits
-the `red-team` half into parallel `mode: bugs` and `mode: cleanup` runs so
-neither family crowds the other out. At the gate the `cleanup` run is
-invoked report-only, so the whole review stays read-only and safe to run
-alongside `review-impl`.
+At the `/implement` gate, a small diff (one production file plus its
+tests) gets one `review-impl` with `lenses: all`; anything larger gets one
+agent per lens in parallel. Pre-registered evals checked the merged
+reviewer against the two agents it replaced and against real bugs that
+had got past an earlier review; results and limits are in CHANGELOG 4.0.0.
 
 ## Install
 
 **Claude Code.** Install from the marketplace:
 
 ```
-/plugin marketplace add KashZod/devloop
-/plugin install devloop@kashzod
+/plugin marketplace add OneKashLabs/devloop
+/plugin install devloop@onekashlabs
 ```
 
-Claude Code auto-discovers the three skills (`skills/`) and three agents
+Claude Code auto-discovers the three skills (`skills/`) and two agents
 (`agents/`); the manifest is `.claude-plugin/plugin.json`. To vendor the
 plugin instead, copy `skills/` and `agents/` into your project's `.claude/`
 directory.
@@ -179,21 +186,22 @@ directory.
 **Codex.** Install from the same marketplace:
 
 ```
-codex plugin marketplace add KashZod/devloop
-codex plugin add devloop@kashzod
+codex plugin marketplace add OneKashLabs/devloop
+codex plugin add devloop@onekashlabs
 ```
 
 Codex reads `.codex-plugin/plugin.json` and its own catalog
-(`.agents/plugins/marketplace.json`). The same three skills power both
-harnesses; Codex registers skills, not agents, so the three review agents
-under `agents/` ride along as prompt files: the skills spawn them as
-subagents where the harness supports delegation, and otherwise degrade to
-the in-context self-check the gates already document.
+(`.agents/plugins/marketplace.json`). Both harnesses use the same three
+skills. A Codex plugin carries skills, MCP servers, assets and hooks but
+not agents (Codex custom agents are TOML files in `.codex/agents/`), so the
+two review agents under `agents/` ship as prompt files: the skills spawn
+them as subagents where the harness supports delegation, and otherwise
+fall back to the in-context self-check the gates document.
 
 **Other Agent Plugins clients.** The repo root also carries a `plugin.json`
 in the vendor-neutral [Agent Plugins](https://agent-plugins.org) 1.0.0 format,
-validated against the published schema, so the three skills are structured to
-install on clients that adopt the standard (Kiro, for one, has [announced
+validated against the published schema, so the three skills install on
+clients that support the standard (Kiro, for one, has [announced
 support](https://kiro.dev/blog/powers-supports-plugins/)). Clients that support
 subagent delegation get the isolated-context review; the rest degrade to the
 self-check, the same as Codex. Claude Code and Codex read their own manifests
@@ -207,7 +215,7 @@ project root:
   config.md    # engineering: build/test/lint, architecture, standards,
                #   blindspots, commit conventions, and the spec/tracker
                #   directory settings. Read by /plan, /implement,
-               #   review-plan, review-impl, red-team, and /spec (which
+               #   review-plan, review-impl, and /spec (which
                #   reads the spec-directory setting from here).
   domain.md    # domain context, architecture overview, domain-specific
                #   concerns. Read by /spec.
@@ -222,64 +230,107 @@ not the cache. There is no copied-in fallback; `.devloop/` is the only
 project-config source.
 
 The fastest start is to copy the closest
-[`examples/<stack>/`](examples/) directory to `.devloop/` in your project:
-each holds a `config.md` and a `domain.md` for one stack
-(`typescript-node`, `python`, `rust`, `android-kotlin`). Each is a
-concrete example for that stack; copy the closest to `.devloop/` and adapt
-it to your project.
+[`examples/<stack>/`](examples/) directory (`typescript-node`, `python`,
+`rust`, `android-kotlin`; each holds a `config.md` and a `domain.md`) to
+`.devloop/` in your project and adapt it.
 
-**Commit `config.md` and `domain.md`** so the whole team shares one
+Commit `config.md` and `domain.md` so the whole team shares one
 context. `.devloop/trackers/` holds in-progress work; commit it for
-cross-machine resumability or gitignore it, your call.
+cross-machine resumability or gitignore it, your call. Each tracker's
+latest review reports (`<feature>-plan-review.md`,
+`<feature>-code-review.md`) sit next to it and follow the same choice.
 
-## Optional: proof that the check actually ran (rung)
+### Optional `## Autonomy` section
 
-devloop's reviews are evidence-backed (`review-impl` quotes the test line
-that proves each acceptance criterion; `red-team` verifies each finding
-before reporting), but the green step still trusts that the agent *ran*
-the tests it says passed. [rung](https://github.com/rung-dev/rung) closes
-that last gap: it records whether a check drove the real surface (not just
-an isolated test or a reading of the code) and whether an independent
-context ran it, then gates on that record deterministically.
+The loop stops for you at two fixed
+checkpoints: before `/implement` builds anything, and after the code
+review, before anything is committed or shipped. An `## Autonomy` section
+in `config.md` tunes the unattended stretches between them: how many
+review rounds a gate runs before its checkpoint (default 3), whether plan
+corrections run on their own (`Convergence: auto`, the default, or `ask`),
+the finish steps that run after you approve the second checkpoint (default
+none), and extra conditions that stop the run:
 
-rung's author-vs-independent split is the same one devloop's review agents
-enforce, and its check-level record hardens the TDD green step into a
-re-checkable artifact instead of a self-report.
+```markdown
+## Autonomy
 
-This is optional and unbundled by design. devloop ships only markdown and
+- Review rounds: 3
+- Convergence: auto
+- Finish steps:
+  1. Run the full test suite and lint
+  2. Commit (see Commit Conventions)
+- Stop and ask on: anything that publishes outside this repository
+```
+
+The rules, and the stop it can't remove (a check that still fails after a
+fix attempt), are in
+[review-and-finish.md](skills/implement/references/review-and-finish.md)
+§Autonomy.
+
+Three more optional settings, all shown in the examples: a
+`Pre-review checks` list under Build & Test Commands (lint or static checks
+`/implement` runs and fixes before the code review), a `Verify recipe` list
+(how to build, launch and drive the project to see a change working before
+checkpoint 2; see
+[review-and-finish.md](skills/implement/references/review-and-finish.md)
+§Runtime verification), and a `done-trackers: keep | archive | delete` line
+next to `tracker-directory` for what happens to a finished tracker (default
+keep).
+
+## Optional: recording that checks ran (rung)
+
+`review-impl` quotes the test line that proves each acceptance criterion
+and verifies each correctness finding before reporting, but the green step
+still trusts that the agent ran the tests it says passed.
+[rung](https://github.com/rung-dev/rung) records whether a check drove the
+real surface (not only an isolated test or a reading of the code) and
+whether an independent context ran it, then gates on that record. Its
+record of each check lets anyone re-check the TDD green step.
+
+rung is optional and not bundled. devloop ships only markdown and
 a bash validator, with no runtime dependencies; rung is a separate
 `pip install rung-ai` CLI (or GitHub Action). To use it, wrap the
 regression run in `rung run --rung 1` and gate CI on `rung gate`
 (exit `0` is the only pass). Keep it out of the core loop unless you want
 CI-enforceable proof that the checks were real.
 
-## Related Work
+## Related work
 
-devloop sits inside the conversation about an *AI-native software development
-lifecycle*. Anthropic's [AI-Native SDLC
+Anthropic's [AI-Native SDLC
 playbook](https://claude.com/blog/the-ai-native-sdlc-playbook) reframes the
 classic six stages (Plan, Design, Build, Test, Deploy, Maintain) as a loop in
 which each stage commits a version-controlled artifact the next stage reads,
-and governance is enforced as the agent works rather than discovered in a late
-review. devloop is a concrete implementation of that loop's inner stages:
+with governance enforced while the agent works. devloop is a concrete implementation of that loop's inner stages:
 `/spec` commits a spec, `/plan` commits a reviewed JSON tracker, and
 `/implement` builds test-first behind review agents that grade the work in a
-context that did not write it. The committed-artifact chain and the
-fresh-context reviewer are devloop's spine, not extras, so the playbook
-describes a shape devloop already has.
+context that did not write it.
 
-What devloop deliberately does not own: deploy gates, production monitoring,
-incident-to-eval loops, and harness-level enforcement hooks. Those are real
-parts of an AI-native SDLC, better served by the harness (managed settings,
-hooks) or your CI. devloop owns the specify-plan-build-review core and stops
-there on purpose.
+devloop works per change. Most engineering fundamentals are project setup
+that devloop uses but does not own:
+
+| Area | Where it lives |
+|---|---|
+| Requirements, including non-functional | `/spec` |
+| Design and its review | `/plan` and `review-plan` |
+| Automated tests | `/implement` (test first, per chunk) |
+| Code review | `review-impl` |
+| Documentation | the maintainability checks, and post-implementation docs |
+| Build, test and run commands (developer experience) | your `.devloop/config.md` |
+| Source control and commit rules | your config's commit conventions and finish steps |
+| CI, deployment, monitoring, incident response | your CI and harness (managed settings, hooks) |
+| Team process (planning, retrospectives, feedback) | your team |
+
+The grouping of non-functional requirements in `/spec` follows Microsoft's
+[Code With Engineering
+Playbook](https://github.com/microsoft/code-with-engineering-playbook)
+(CC BY 4.0), rewritten for this loop.
 
 [GitHub Spec Kit](https://github.com/github/spec-kit) is a spec-driven
 development toolkit in the same space, with a comparable specify -> plan ->
 tasks -> implement flow across several coding agents. devloop's `/spec ->
 /plan -> /implement` shape covers similar ground; where it differs is the
-review layer: three independent agents (`review-plan`, `review-impl`,
-`red-team`) run in author-isolated context as hard gates between the
+review layer: two independent agents (`review-plan`, and `review-impl`
+with three lenses) run in author-isolated context as hard gates between the
 phases, and the loop is TDD-first with a JSON tracker that survives context
 resets. For the broader spec-driven tooling ecosystem, start with Spec Kit;
 for the gated, review-heavy loop, devloop is narrower by design.

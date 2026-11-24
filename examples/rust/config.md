@@ -23,32 +23,41 @@ cargo build
 cargo clippy -- -W clippy::all
 ```
 
+**Pre-review checks** (run by `/implement` before the code review; fix what they report):
+
+- `cargo clippy -- -W clippy::all`
+- `cargo fmt --check`
+
+**Verify recipe** (followed before checkpoint 2 to see the change working):
+
+- `cargo run -- <arguments that hit the changed code>`; check the output and the exit code
+
 ---
 
 ## Architecture Patterns
 
-- **Trait-based abstractions** - all service boundaries are traits
-- **Dependency injection via generics** - `fn new(repo: impl Repository)`
-- **Error handling via Result<T, E>** - custom error enums, no unwrap() in production
-- **Builder pattern for complex construction** - validated at build time
-- **Module visibility** - pub(crate) for internal APIs, pub for external
-- **Test doubles as struct implementations** - no mocking frameworks
+- Trait-based abstractions: all service boundaries are traits
+- Dependency injection via generics: `fn new(repo: impl Repository)`
+- Error handling via Result<T, E>: custom error enums, no unwrap() in production
+- Builder pattern for complex construction: validated at build time
+- Module visibility: pub(crate) for internal APIs, pub for external
+- Test doubles as struct implementations: no mocking frameworks
 
 ---
 
-## Standards to Verify (Quality Checklist §4)
+## Standards to Verify (Quality Checklist §6)
 
 - [ ] No unwrap() or expect() in production code (use ? operator)
 - [ ] Custom error types implement std::error::Error
 - [ ] All public APIs have doc comments (/// style)
 - [ ] Trait bounds are minimal (don't require Clone when & suffices)
 - [ ] No unsafe blocks unless justified with SAFETY comment
-- [ ] Proper lifetime annotations (no unnecessary 'static)
+- [ ] No unnecessary 'static lifetimes
 - [ ] Clippy warnings resolved (not suppressed without reason)
 
 ---
 
-## Blindspots to Check (Quality Checklist §8)
+## Blindspots to Check (Quality Checklist §5)
 
 - [ ] Panic paths - any remaining unwrap/expect in prod code
 - [ ] Integer overflow - checked_add/checked_mul for user input
@@ -86,4 +95,5 @@ reads and writes:
 ```text
 spec-directory:    docs/specs/          # where /spec writes and /plan reads (default)
 tracker-directory: .devloop/trackers/   # where /plan writes impl-tracker-<feature>.json (default)
+done-trackers:     keep                 # keep | archive | delete a finished tracker (default keep)
 ```

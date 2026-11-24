@@ -1,5 +1,93 @@
 # Changelog
 
+## 4.0.0
+
+Reworks the loop around two checkpoints and one code reviewer. Based on a
+review of 83 sessions that used devloop: plan reviews failed 42% of first
+rounds, users restated the same autonomy rules in most sessions, and
+one-file fixes paid for a full plan review.
+
+### Breaking
+- **New home and marketplace name.** The repository moved to
+  `OneKashLabs/devloop` and the marketplace is now `onekashlabs`, so the
+  plugin is `devloop@onekashlabs`. To switch from 3.x in Claude Code:
+  `/plugin uninstall devloop@kashzod`, `/plugin marketplace remove kashzod`,
+  then `/plugin marketplace add OneKashLabs/devloop` and
+  `/plugin install devloop@onekashlabs`. In Codex: `codex plugin remove
+  devloop@kashzod`, `codex plugin marketplace remove kashzod`, then
+  `codex plugin marketplace add OneKashLabs/devloop` and
+  `codex plugin add devloop@onekashlabs`. The site is now
+  https://devloop.onekash.org.
+- **`red-team` is removed.** `review-impl` takes its work as lenses:
+  `lenses: conformance | correctness | cleanup | all`. Old modes map as
+  `bugs` -> `correctness` and `cleanup` -> `cleanup`; for `both`, run the
+  `correctness` and `cleanup` lenses (`all` also runs conformance, which
+  runs the tests and build). A spawn of `red-team` now fails, and so does
+  its apply mode: the session that wrote the code applies fixes.
+- **`review-impl` defaults to `lenses: all`.** A 3.x prompt that spawned it
+  for conformance now also gets the correctness and cleanup lenses.
+- **Report formats.** `review-impl` ends with a JSON findings list instead
+  of a markdown findings section; `review-plan` has 7 criteria instead of
+  8. Anything that parses the reports needs updating.
+- **Tracker fields.** `convergence_rounds` is no longer read (the round
+  count lives in the session). `quality_verification` keys are the six
+  concerns plus `final`; `gaps_functional`, `standards` and
+  `gaps_architectural` are gone.
+- **Checklist numbering.** Config headings that point at "Quality Checklist
+  §4" (Standards) and "§8" (Blindspots) now mean §6 and §5. The agents read
+  those sections by name, so only the pointer is stale.
+- **`/plan` does more on its own.** Its phases are reordered (Phase 4 is the
+  review gate, Phase 5 the checkpoint). A small change takes the fast lane
+  and is built in the same session with no tracker, and a bug fix with no
+  proof stops at a probe.
+
+### Added
+- **Two checkpoints:** before `/implement` builds anything, and after the
+  code review, before anything is committed.
+- **`## Autonomy` config section:** review rounds per gate (default 3),
+  `Convergence: auto | ask` (default `auto`), finish steps after checkpoint
+  2, extra stop conditions.
+- **Unattended review rounds.** Each gate reviews, fixes and re-reviews up
+  to the round limit; each re-run gets the previous report and marks each
+  earlier finding it covers resolved or open.
+- **Fast lane.** One production file plus its tests, with no new behavior
+  beyond the fix, is built in-session with no tracker, then goes through
+  the code review. `/plan` takes it on its own when the change fits.
+- **Proof for bug fixes.** `/plan` records a failing test or a probe before
+  planning a fix; a probe that disproves the bug ends the plan.
+- **Findings as one JSON list** per code review, each marked introduced or
+  pre-existing. A pre-existing bug is reported but doesn't fail the gate.
+- **Runtime verification (optional):** with a `Verify recipe` in the
+  config, the change is run end to end before checkpoint 2.
+- **`/spec` check mode** for an existing design doc.
+- **Non-functional requirements in `/spec`**, in five groups, each recorded
+  with a number and a way to verify it.
+- **Review of any diff** with no tracker, against a stated request.
+
+### Changed
+- **Six-concern checklist** shared by both reviewers, each check under one
+  concern: completeness, correctness, regression, robustness, blindspots,
+  maintainability. `review-plan` adds TDD quality. The cleanup lens gains a
+  maintainability angle (stale docs, hard-coded environment values,
+  dependency and versioning rules, error messages).
+- **One verdict set** at both gates: `PASS`, `PASS-WITH-WARNINGS`, `FAIL`.
+- **Plain wording and shorter prompts:** 3,318 lines of skill and agent
+  text, down from 3,466 in 3.2.0, with each rule stated once.
+
+### Evidence
+Pre-registered evals (fixtures and runs are not shipped):
+- The merged reviewer against the two agents it replaces (33 runs on
+  planted and clean fixtures) and the flat JSON report (16 runs): every
+  planted defect caught as often as before, no false positives.
+- Four real bugs from an open-source Android app that had got past an
+  earlier review, plus two maintainability plants (22 runs): 11 of 12 known
+  bugs and every plant caught, the same as the text before it.
+- A live run of one bug fix on that app: one owner turn instead of two or
+  three, and about a third of 3.2.0's cost, with the same fix.
+
+These show no loss on review quality, not a gain; both versions hit the
+ceiling on the synthetic fixtures.
+
 ## 3.2.0
 
 Sharpens the `red-team` gate, validated by a defect-injection eval (11 arms:

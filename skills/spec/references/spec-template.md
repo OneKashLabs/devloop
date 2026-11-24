@@ -1,12 +1,7 @@
-# Spec Template
+# Spec template
 
-This is the output format for spec files. The `/spec` skill writes
-specs to the location configured in `.devloop/config.md` (the
-spec-directory setting, default `docs/specs/<feature-name>.md`). Use
-kebab-case for filenames.
-
-Load this file during Phase 2 (Specify) to understand the required
-structure.
+The output format for spec files, loaded in `/spec` Phase 2 (Specify).
+Phase 2.7 says where the file goes and how it is named.
 
 ---
 
@@ -25,9 +20,7 @@ spec-version: 1
 
 ## Overview
 
-<2-3 sentences: WHAT this feature does and WHY it matters.
-Focus on user value. No implementation details, no frameworks,
-no file paths, no algorithms.>
+<What this feature does and why it matters (see guidelines).>
 
 ## User Stories
 
@@ -81,7 +74,7 @@ no file paths, no algorithms.>
 | Affected Components | /plan Phases 1-2 | Starting point for chunk decomposition |
 | Assumptions | /plan Phase 1 (Analysis) | Context for architecture decisions |
 | Acceptance Criteria | /plan (chunk criteria), /implement (tests) | Become per-chunk criteria, then failing tests |
-| Edge Cases | /implement Phase 2 (TDD Cycle) | Additional test cases |
+| Edge Cases | /implement Phase 2 (TDD cycle) | Additional test cases |
 
 ## Clarifications
 
@@ -97,7 +90,7 @@ fit above. Remove this section if empty.>
 
 ---
 
-## Section Guidelines
+## Section guidelines
 
 ### Frontmatter
 
@@ -111,30 +104,23 @@ spec-version: 1                # Bumped when spec is re-run/updated
 ---
 ```
 
-- `status` transitions: Draft -> Ready (after validation passes)
-  or Draft -> Ready-with-warnings (if validation has unresolved items)
-- `spec-version` increments when `/spec` is re-run with "update"
-
 ### Overview
 
 - Focus on user value, not technical approach
-- One sentence for WHAT, one for WHY
-- No framework names, no file paths, no API endpoints
+- One sentence for what it does, one for why
+- No implementation details: no framework names, file paths, API
+  endpoints or algorithms
 
 ### User Stories
 
 - **P1:** Must-have for the feature to be useful
 - **P2:** Important but the feature works without it
 - **P3:** Nice-to-have, could be a separate follow-up spec
-- Each story should be independently implementable and testable
 - Avoid stories that are implementation tasks disguised as user needs
-- Include a "Why P_" line to make priority reasoning explicit
 
 ### Acceptance Criteria
 
-- Given/When/Then format keeps each criterion testable
 - Each criterion should map to one or more tests
-- Include both happy path and error scenarios for P1 stories
 - Be specific: "error message appears" is too vague,
   "red banner shows 'Failed to save. Retry?'" is testable
 - Hint at test complexity in parentheses:
@@ -147,16 +133,13 @@ spec-version: 1                # Bumped when spec is re-run/updated
 ### Edge Cases
 
 - Focus on scenarios that would break a naive implementation
-- Cross-reference taxonomy categories in brackets: `[Category 6]`
-- At minimum for P1 features: empty state, error state, boundary values
 - Domain-specific concerns from .devloop/domain.md get their own items
 
 ### Out of Scope
 
-- Explicitly state what this feature does NOT do
+- State what this feature does not do
 - Prevents scope creep during TDD implementation
 - "Out of scope" items are candidates for future specs
-- Include at least one item for medium+ features
 
 ### Assumptions
 
@@ -173,25 +156,19 @@ spec-version: 1                # Bumped when spec is re-run/updated
 
 ### Downstream Mapping
 
-- Always include this section, it's the bridge to planning and build
+- Always include this section: `/plan` reads it to find which spec
+  section each phase uses
 - Maps each spec section to the /plan or /implement phase that consumes it
-- The /plan skill references this table to know where to look
-- **Non-code projects:** If the deliverable is content, config, or
-  documentation rather than executable code, adapt the mapping:
-  replace "failing tests" with "validation criteria or review checks"
-  and "chunk decomposition" with "content chunking." Suggest a
-  structured build order rather than referencing `/plan` + `/implement`
-  directly
+- Non-code projects adapt the mapping as `/spec` Phase 5.3 says
 
 ### Clarifications
 
 - Added during Phase 3 as questions are resolved
 - One `### Session YYYY-MM-DD` heading per `/spec` invocation
-- Format: `- Q: <question> -> A: <answer>`
 - Preserved across re-runs (when user chooses "update")
 
 ### Notes
 
 - Validation warnings from Phase 4
 - Deferred items (ambiguities that weren't worth clarifying)
-- Remove this section entirely if empty, don't leave an empty heading
+- Remove this section if empty

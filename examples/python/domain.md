@@ -1,6 +1,6 @@
 # .devloop/domain.md example - Python
 
-Example configuration for a Django web application with
+Example domain notes for a Django web application with
 Django REST Framework.
 
 ---
@@ -31,7 +31,7 @@ URLs -> Views (or ViewSets) -> Services/Managers -> Models -> PostgreSQL
 - [ ] Timezone-aware datetimes: USE_TZ=True, no naive datetimes
 - [ ] Migration safety: backward-compatible migrations for zero-downtime
 - [ ] File upload limits: max size, allowed types, storage backend
-- [ ] CSRF protection: forms and API endpoints handle tokens correctly
+- [ ] CSRF protection: forms and API endpoints check CSRF tokens
 - [ ] Admin interface: data management features include admin actions
 - [ ] Signals: avoid implicit coupling via Django signals
 

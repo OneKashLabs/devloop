@@ -1,19 +1,12 @@
-# Spec Validation Checklist
+# Spec validation checklist
 
 Run this checklist during Phase 4 after the spec is drafted and
-clarifications are resolved. Each point must be verified with
-specific evidence from the spec file.
+clarifications are resolved.
 
 **Evidence rule:** Every WARN or FAIL must quote the exact spec line it
 refers to, the way the review agents quote a code line. Do not flag from
-memory or paraphrase, if you cannot point at the offending text, it is
+memory or paraphrase: if you cannot point at the offending text, it is
 not a finding.
-
-Pass criteria: all 8 points pass, or remaining failures are
-documented in the spec's Notes section with rationale.
-
-Max 2 fix iterations. If issues persist after 2 rounds, mark
-the spec as Ready-with-warnings and proceed.
 
 ---
 
@@ -22,30 +15,15 @@ the spec as Ready-with-warnings and proceed.
 Every acceptance criterion can be converted to a test.
 
 **How to check:**
-- For each Given/When/Then, ask: "Can I write a test that passes
-  when this works and fails when it doesn't?"
+- For each Given/When/Then, construct the specific assertion: a test
+  that passes when this works and fails when it doesn't
+- Ask: "Could an implementation pass this criterion while being
+  completely wrong?" If yes, the criterion is too vague ("responds
+  appropriately" passes for any response)
 - The test complexity hint, `(1 test)`, `(parameterized)`,
   `(integration)`, should be present and accurate
 - Red flags: criteria using "appropriate", "graceful", "intuitive",
   "fast" without a measurable threshold
-
-**Common misses:**
-- "System handles errors properly", HOW? What does the user see?
-- "Performance is acceptable", What's the threshold?
-- "UI is responsive", At what breakpoint? What changes?
-- "Data is validated", Which fields? What rules? What error?
-
-**Self-evaluation warning:** It's tempting to say "all criteria
-are testable" without actually imagining the test. For each
-criterion, mentally construct the specific assertion, don't
-just pattern-match the Given/When/Then structure.
-
-**Adversarial check technique:** For each criterion, ask: "Could
-an implementation pass this criterion while being completely wrong?"
-If yes, the criterion is too vague. Example: "Then the system
-responds appropriately" passes for ANY response. "Then the system
-returns a 400 status with field-level error messages" can only
-pass when correct.
 
 ---
 
@@ -59,20 +37,14 @@ both happy-path and error-path criteria.
   (at least one happy path, one error path)
 - P2/P3 stories need at least 1 criterion each
 - No story should have an empty acceptance criteria section
+- Consider: the user cancelling midway, empty or invalid input, and
+  partial success
 
 **Variant completeness:** If a story's behavior branches by N
 variants (scenarios, user roles, platforms, modes), each variant
 needs at least one criterion. Count the variants mentioned in
 the story, count the criteria covering each, flag uncovered
-variants. Example: a story says "generates output for 4 scenarios"
-but only 2 of 4 have criteria, the other 2 are untested.
-
-**Common misses:**
-- Happy path only (no error scenarios for P1 stories)
-- Missing "what if the user cancels midway?"
-- Missing "what if input is empty/invalid?"
-- Missing "what if the operation partially succeeds?"
-- Story branches by N variants but only some have criteria
+variants.
 
 ---
 
@@ -89,12 +61,6 @@ without definition. No pronouns with ambiguous referents.
 - Domain terms should be self-evident from context or defined
   on first use
 
-**Common misses:**
-- "Large files", how large? 1MB? 1GB? 100GB?
-- "Recent items", how recent? Last hour? Last 7 days?
-- "Quickly loads", under 200ms? Under 1s? Under 5s?
-- "Secure access", authentication? authorization? encryption?
-
 ---
 
 ## 4. Scope
@@ -105,15 +71,11 @@ P1/P2/P3 boundaries are defensible.
 **How to check:**
 - "Out of Scope" section exists and has at least one item
   (for medium+ features)
-- No "while we're at it" additions hiding in P1 stories
+- No "while we're at it" additions hiding in P1 stories, including
+  feature creep labelled as edge case handling
+- No unbounded requirements ("supports all formats")
 - Could someone argue a P2 should be P1? If yes, the "Why P_"
   rationale should address it
-
-**Common misses:**
-- Scope defined by what's IN but not what's OUT
-- P3 stories that are actually essential for P1 to be usable
-- Feature creep disguised as "edge case handling"
-- Unbounded requirements ("supports all formats")
 
 ---
 
@@ -126,14 +88,10 @@ P1 stories deliver standalone value.
 - For each P1 story, ask: "Can I ship this alone and demo it?"
 - No circular dependencies between stories
 - P2/P3 may depend on P1 but not on each other
-- Stories don't share setup assumptions ("US2 assumes US1 ran first")
-
-**Common misses:**
-- Stories that are really sub-tasks of a single story
-- A "view" story that assumes a "create" story shipped first
-  (acceptance criteria should handle the empty state)
-- Stories that require shared infrastructure not in any story's
-  acceptance criteria
+- Stories don't share setup assumptions ("US2 assumes US1 ran first";
+  acceptance criteria should handle the empty state)
+- No stories that are really sub-tasks of a single story, and no shared
+  infrastructure missing from every story's acceptance criteria
 
 ---
 
@@ -146,7 +104,8 @@ MVP that delivers user value on its own.
 - At least one P1 story exists
 - The P1 set alone would be a useful, shippable increment
 - Every story has a "Why P_" justification
-- Everything is NOT P1, if it is, priorities aren't real
+- Not every story is P1; if all are, re-rank them
+- Priority follows user value, not technical ordering
 
 **Priority dependency check:** If a P1 story depends on work
 that's currently P2 or P3 (or doesn't exist yet), flag it:
@@ -154,31 +113,24 @@ that's currently P2 or P3 (or doesn't exist yet), flag it:
 - Option B: Restructure the P1 story to remove the dependency
 - Option C: Document the dependency in Notes with a plan
 
-**Common misses:**
-- All stories marked P1 (no real prioritization)
-- P1 stories that can't function without P2 stories
-- Priority based on technical ordering instead of user value
-
 ---
 
-## 7. Edge Cases
+## 7. Edge cases
 
 Key failure modes and boundary conditions are identified.
 At minimum: empty state, error state, boundary values.
 
 **How to check:**
 - Edge Cases section is non-empty
-- Cross-reference with taxonomy categories 5 (Error Handling)
-  and 6 (Edge Cases & Boundaries)
+- Cross-reference with taxonomy categories 5 (Error handling)
+  and 6 (Edge cases and boundaries)
 - Each P1 story has at least one edge case
-- Domain-specific concerns from .devloop/domain.md are addressed
+- Domain-specific concerns from .devloop/domain.md are addressed,
+  including how the feature interacts with existing domain rules
 - Category tags `[Category N]` are present for traceability
-
-**Common misses:**
-- Only feature-level edge cases (missing domain interaction)
-- Timezone/locale edge cases for time-sensitive features
-- Concurrent operation scenarios for shared data
-- Empty state (no data yet) vs error state (failed to load)
+- Consider: timezone/locale for time-sensitive features, concurrent
+  operations on shared data, and empty state (no data yet) vs error
+  state (failed to load)
 
 ---
 
@@ -187,21 +139,18 @@ At minimum: empty state, error state, boundary values.
 No unresolved `[NEEDS CLARIFICATION]` markers remain.
 
 **How to check:**
-- Search the spec for `[NEEDS CLARIFICATION]`
+- Search the whole spec, nested sections included, for
+  `[NEEDS CLARIFICATION]`
 - If any remain, they must be either:
-  - Resolved (marker replaced with the answer)
+  - Resolved (marker replaced with the answer in its original
+    location, not only in Clarifications)
   - Deferred with rationale in Notes section:
     `[DEFERRED: not clarified, <reason>]`
-
-**Common misses:**
-- Markers buried in nested sections
-- Markers resolved in Clarifications section but not updated
-  in the original location
-- New ambiguities introduced during Phase 4 fixes
+- Check for new ambiguities introduced during Phase 4 fixes
 
 ---
 
-## Project-Specific Validation
+## Project-specific validation
 
 After the 8 generic points above, check the spec against
 project-specific criteria:
@@ -217,7 +166,39 @@ failures, fix or add to Notes with rationale.
 
 ---
 
-## Handling Failures
+## Check mode
+
+In check mode the input is an existing design doc, not a new spec. Build
+a mapping first, then run the 8 points on it:
+
+1. List every decision the doc records (a choice made, a value fixed, an
+   option rejected). Each becomes one or more acceptance criteria in
+   Given/When/Then form, citing the doc's section.
+2. A decision that can't be written as a pass/fail criterion is a
+   Testability gap. Ask about it in Phase 3; don't invent a criterion.
+3. Two decisions that can't both hold are a Resolution gap.
+4. Text the doc leaves open ("TBD", "maybe", a listed option with no
+   choice) is a `[NEEDS CLARIFICATION]` marker.
+5. Out of Scope: use the doc's own deferred or rejected list. If it has
+   none, ask whether anything is deferred.
+
+Check mode reports instead of editing. Don't edit the design doc unless
+the user asks; it stays the spec `/plan` binds to. The report carries:
+
+- the mapping and its gaps; each failing point is a gap
+- each Phase 3 answer as `Q -> A`, which `/plan` turns into acceptance
+  criteria that cite it. For a Resolution gap, offer to append the answer to the doc, since the doc stays
+  the spec. The `Next:` line carries the answers, so a fresh `/plan`
+  session has them
+- questions left open, marked deferred
+- the status (`Ready` or `Ready-with-warnings`)
+
+Point 6 (Priority) applies only if the doc ranks its decisions; otherwise
+report it as not applicable.
+
+---
+
+## Handling failures
 
 **If all 8 points pass:** Mark spec status as `Ready`. Proceed
 to Phase 5 (Handoff).
@@ -231,8 +212,4 @@ adding Out of Scope items).
 Document remaining issues in the spec's Notes section with
 rationale for why they couldn't be resolved. Mark spec status
 as `Ready-with-warnings`. Proceed to Phase 5 with a warning
-in the handoff summary.
-
-**Do not iterate more than twice.** Diminishing returns. The
-remaining issues are likely ambiguities that need human input
-during TDD implementation, not spec-level resolution.
+in the handoff summary. Do not iterate more than twice.

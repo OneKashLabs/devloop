@@ -1,6 +1,6 @@
 # .devloop/domain.md example - TypeScript / Node.js
 
-Example configuration for a TypeScript backend service using
+Example domain notes for a TypeScript backend service using
 Node.js, with Express or Fastify.
 
 ---
@@ -43,7 +43,7 @@ Routes -> Controllers -> Services -> Repositories -> PostgreSQL
 - Constructor injection for all services (no service locators)
 - Environment variables via config module (not process.env inline)
 - SQL parameterized queries (no string concatenation)
-- Proper HTTP status codes (201 create, 204 delete, 404 not found)
+- HTTP status codes (201 create, 204 delete, 404 not found)
 - Middleware chain: auth -> rate limit -> validate -> handler
 
 ---

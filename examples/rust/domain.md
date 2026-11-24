@@ -1,13 +1,13 @@
 # .devloop/domain.md example - Rust
 
-Example configuration for a Rust command-line tool.
+Example domain notes for a Rust command-line tool.
 
 ---
 
 ## Domain Context
 
 Rust CLI tool for terminal users and scripting/pipeline consumers.
-Designed for composition with other Unix tools via stdin/stdout.
+Composes with other Unix tools via stdin/stdout.
 
 ---
 

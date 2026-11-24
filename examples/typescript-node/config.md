@@ -25,37 +25,45 @@ npm run lint
 # or: npx eslint src/
 ```
 
+**Pre-review checks** (run by `/implement` before the code review; fix what they report):
+
+- `npm run lint`
+
+**Verify recipe** (followed before checkpoint 2 to see the change working):
+
+- `npm run build`, start the server, and `curl` the route the diff touches; check the status and body
+
 ---
 
 ## Architecture Patterns
 
-- **Layered architecture:** Controller -> Service -> Repository
-- **Controllers handle HTTP** - validation, serialization, status codes
-- **Services contain business logic** - no HTTP awareness
-- **Repositories abstract data access** - DB, API, file system
-- **Dependency injection via constructor** - no service locators
-- **Interfaces for test doubles** - in-memory fakes, not jest.mock()
-- **Zod/io-ts for runtime validation** at system boundaries
+- Layered architecture: Controller -> Service -> Repository
+- Controllers handle HTTP: validation, serialization, status codes
+- Services contain business logic: no HTTP awareness
+- Repositories abstract data access: DB, API, file system
+- Dependency injection via constructor: no service locators
+- Interfaces for test doubles: in-memory fakes, not jest.mock()
+- Zod/io-ts for runtime validation at system boundaries
 
 ---
 
-## Standards to Verify (Quality Checklist §4)
+## Standards to Verify (Quality Checklist §6)
 
 - [ ] All business logic in service layer (not in controllers or routes)
 - [ ] Input validation at API boundaries (Zod schemas, express-validator)
-- [ ] Proper error handling (custom error classes, not bare throw)
-- [ ] Async/await with proper error propagation (no unhandled promises)
+- [ ] Errors use custom error classes, not bare throw
+- [ ] Async/await with errors propagated (no unhandled promises)
 - [ ] Environment variables via config module (not process.env inline)
 - [ ] SQL parameterized queries (no string concatenation)
-- [ ] Proper HTTP status codes (201 for create, 404 for not found)
+- [ ] HTTP status codes match the result (201 for create, 404 for not found)
 
 ---
 
-## Blindspots to Check (Quality Checklist §8)
+## Blindspots to Check (Quality Checklist §5)
 
 - [ ] CORS - cross-origin requests from frontend
 - [ ] Rate limiting - abuse prevention on public endpoints
-- [ ] Pagination - large result sets handled properly
+- [ ] Pagination: large result sets are paginated
 - [ ] Idempotency - retry-safe for POST/PUT operations
 - [ ] Timeouts - external API calls have deadlines
 - [ ] Memory - streaming for large payloads, no full buffering
@@ -93,4 +101,5 @@ reads and writes:
 ```text
 spec-directory:    docs/specs/          # where /spec writes and /plan reads (default)
 tracker-directory: .devloop/trackers/   # where /plan writes impl-tracker-<feature>.json (default)
+done-trackers:     keep                 # keep | archive | delete a finished tracker (default keep)
 ```

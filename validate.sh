@@ -24,6 +24,26 @@ fail() {
     printf "  \033[31mFAIL\033[0m %s\n" "$1"
 }
 
+# has_text FILE PHRASE: PHRASE appears in FILE with line breaks folded to
+# spaces, so prose can wrap freely without breaking a marker.
+has_text() {
+    [[ -f "$1" ]] && tr '\n' ' ' < "$1" | tr -s ' ' | grep -qF -- "$2"
+}
+
+# require_markers FILE MARKER...: one pass/fail line per marker, matched
+# with has_text so a phrase that wraps across lines still matches.
+require_markers() {
+    local file="$1"; shift
+    local marker
+    for marker in "$@"; do
+        if has_text "$file" "$marker"; then
+            pass "$file has: $marker"
+        else
+            fail "$file is missing: $marker"
+        fi
+    done
+}
+
 section() {
     printf "\n\033[1m%s\033[0m\n" "$1"
 }
@@ -40,6 +60,7 @@ required_files=(
     # Implement skill
     "skills/implement/SKILL.md"
     "skills/implement/references/quality-checklist.md"
+    "skills/implement/references/review-and-finish.md"
     # Plan skill (owns the plan artifacts: tracker schema + chunk template)
     "skills/plan/SKILL.md"
     "skills/plan/references/chunk-template.md"
@@ -52,7 +73,6 @@ required_files=(
     # Agents
     "agents/review-plan.md"
     "agents/review-impl.md"
-    "agents/red-team.md"
 )
 
 for f in "${required_files[@]}"; do
@@ -100,6 +120,7 @@ check_links_in "skills/spec/SKILL.md"
 check_links_in "skills/plan/references/chunk-template.md"
 check_links_in "skills/plan/references/tracker-schema.md"
 check_links_in "skills/implement/references/quality-checklist.md"
+check_links_in "skills/implement/references/review-and-finish.md"
 check_links_in "skills/spec/references/spec-template.md"
 check_links_in "skills/spec/references/clarification-taxonomy.md"
 check_links_in "skills/spec/references/validation-checklist.md"
@@ -254,15 +275,15 @@ check_phase_sequence "$plan_skill" "Plan SKILL.md" 5
 check_phase_sequence "$implement_skill" "Implement SKILL.md" 3
 
 # ─────────────────────────────────────────────
-section "6. Quality checklist has exactly 8 points"
+section "6. Quality checklist has exactly 6 concerns"
 # ─────────────────────────────────────────────
 
 checklist="skills/implement/references/quality-checklist.md"
 checklist_count="$(grep -cE '^## [0-9]+\.' "$checklist" || true)"
-if [[ "$checklist_count" -eq 8 ]]; then
+if [[ "$checklist_count" -eq 6 ]]; then
     pass "quality-checklist.md has $checklist_count points"
 else
-    fail "quality-checklist.md has $checklist_count points (expected 8)"
+    fail "quality-checklist.md has $checklist_count points (expected 6)"
 fi
 
 expected=1
@@ -278,21 +299,19 @@ while IFS= read -r num; do
 done <<< "$checklist_nums"
 
 # ─────────────────────────────────────────────
-section "7. Gate structure and 8-point summaries"
+section "7. Gate structure and concern names"
 # ─────────────────────────────────────────────
 
-# Implement Phase 3 lists the 8 concern names in bold (the code-time
-# checklist). The plan-review gate now lives in /plan Phase 5; its 8
-# criteria live in the review-plan agent, not inline in the skill.
+# Implement Phase 3 lists the 6 concern names in bold (the shared
+# checklist). The plan-review gate lives in /plan Phase 4; its criteria
+# (the 6 concerns plus TDD quality) live in the review-plan agent.
 phase3_names=(
     "Completeness"
     "Correctness"
-    "Gaps (Functional)"
-    "Standards"
     "Regression"
     "Robustness"
-    "Gaps (Architectural)"
     "Blindspots"
+    "Maintainability"
 )
 
 for name in "${phase3_names[@]}"; do
@@ -304,15 +323,15 @@ for name in "${phase3_names[@]}"; do
     fi
 done
 
-# The plan-review gate is artifact-triggered in /plan Phase 5.
-if grep -q "GATE.*tracker.*triggers" "$plan_skill"; then
+# The plan-review gate is artifact-triggered in /plan Phase 4.
+if grep -q "Run this review on the Phase 3 tracker" "$plan_skill"; then
     pass "Plan SKILL.md has artifact-triggered plan-review gate"
 else
     fail "Plan SKILL.md missing artifact-triggered gate pattern"
 fi
 
 # The /implement quality gate is triggered when all chunks complete.
-if grep -qE "GATE.*(chunks complete|parallel review)" "$implement_skill"; then
+if grep -q "When all chunks are complete, run the code review" "$implement_skill"; then
     pass "Implement SKILL.md has artifact-triggered quality gate"
 else
     fail "Implement SKILL.md missing quality gate pattern"
@@ -326,7 +345,7 @@ else
 fi
 
 # ─────────────────────────────────────────────
-section "8. Lessons learned are sequentially numbered"
+section "8. Rule lists are sequentially numbered"
 # ─────────────────────────────────────────────
 
 check_lessons() {
@@ -336,7 +355,7 @@ check_lessons() {
     local in_lessons=false
 
     while IFS= read -r line; do
-        if [[ "$line" == "## Lessons Learned"* ]]; then
+        if [[ "$line" =~ ^"## "(Implementation|Planning|Spec)" rules"$ ]]; then
             in_lessons=true
             continue
         fi
@@ -432,12 +451,12 @@ core_files=(
     "skills/plan/references/chunk-template.md"
     "skills/plan/references/tracker-schema.md"
     "skills/implement/references/quality-checklist.md"
+    "skills/implement/references/review-and-finish.md"
     "skills/spec/references/spec-template.md"
     "skills/spec/references/clarification-taxonomy.md"
     "skills/spec/references/validation-checklist.md"
     "agents/review-plan.md"
     "agents/review-impl.md"
-    "agents/red-team.md"
 )
 leaked_terms=("SapClient" "fetchFn" "vitest" "npx tsc" "CSRF" "Zod" "gradlew" "Hilt" "Room" "Jetpack" "AndroidManifest")
 
@@ -458,6 +477,18 @@ fi
 section "11. Agent frontmatter is valid"
 # ─────────────────────────────────────────────
 
+# Every agent declares its tools (the loop below fails a missing line, which
+# would grant every tool). The review agents have no Edit or Write tool in
+# their frontmatter, in either the inline or the list form; their Bash
+# writes are barred only by the prompt.
+for agent in agents/*.md; do
+    if awk 'NR==1 && /^---$/ {f=1; next} f && /^---$/ {exit} f && /^tools:/ {t=1; print; next} t && /^[[:space:]]+-/ {print; next} {t=0}' "$agent" | grep -qE '(Edit|Write)\b'; then
+        fail "$(basename "$agent") frontmatter must not grant Edit or Write"
+    else
+        pass "$(basename "$agent") frontmatter grants no Edit or Write"
+    fi
+done
+
 for agent in agents/*.md; do
     basename="$(basename "$agent")"
     for field in name description tools model; do
@@ -473,23 +504,11 @@ done
 section "12. Skills reference their review agents"
 # ─────────────────────────────────────────────
 
-# review-plan is /plan's gate; review-impl + red-team are /implement's.
+# review-plan is /plan's gate; section 18 pins /implement's review-impl spawns.
 if grep -q "review-plan" "$plan_skill"; then
     pass "Plan SKILL.md references review-plan agent"
 else
     fail "Plan SKILL.md does not reference review-plan agent"
-fi
-
-if grep -q "review-impl" "$implement_skill"; then
-    pass "Implement SKILL.md references review-impl agent"
-else
-    fail "Implement SKILL.md does not reference review-impl agent"
-fi
-
-if grep -q "red-team" "$implement_skill"; then
-    pass "Implement SKILL.md references red-team agent"
-else
-    fail "Implement SKILL.md does not reference red-team agent"
 fi
 
 # ─────────────────────────────────────────────
@@ -630,7 +649,7 @@ done
 # The review agents discover project config too; each must name the
 # .devloop/ home so a future edit can't silently revert one to the
 # plugin-cache model.
-for agent in agents/review-plan.md agents/review-impl.md agents/red-team.md; do
+for agent in agents/review-plan.md agents/review-impl.md; do
     basename="$(basename "$agent")"
     if grep -q "\.devloop/" "$agent"; then
         pass "$basename references .devloop/"
@@ -640,34 +659,19 @@ for agent in agents/review-plan.md agents/review-impl.md agents/red-team.md; do
 done
 
 # ─────────────────────────────────────────────
-section "18. Phase 3 red-team spawn is size-adaptive"
+section "18. Phase 3 code review spawn is size-adaptive"
 # ─────────────────────────────────────────────
 
-# /implement Phase 3 sizes the diff and either runs one red-team in
-# mode: both (small diff) or splits into parallel mode: bugs +
-# mode: cleanup (report-only) on a large diff. Guard the invariant so a
-# future edit can't silently revert to the fixed single-agent gate or
-# drop the report-only instruction that keeps the split read-only.
-# The three mode literals prove both paths are documented: mode: both
-# (small diff) plus mode: bugs and mode: cleanup (the large-diff split).
-# mode: bugs is unique to the split, so a revert to the fixed single-agent
-# gate drops it and this fires.
-for token in "mode: both" "mode: bugs" "mode: cleanup"; do
-    if grep -qi "$token" "$implement_skill"; then
-        pass "implement SKILL.md Phase 3 names the size-adaptive marker: \"$token\""
+# /implement Phase 3 runs one review-impl with lenses: all on a small diff
+# and one review-impl per lens in parallel on a large diff. Guard both paths
+# so an edit can't silently fall back to a single lens or a fixed spawn.
+for token in "review-impl agent with lenses: all to review implementation" "review-impl agent with lenses: conformance to review implementation" "review-impl agent with lenses: correctness to review implementation" "review-impl agent with lenses: cleanup to review implementation"; do
+    if grep -qF "$token" "$implement_skill"; then
+        pass "implement SKILL.md Phase 3 names the spawn: \"$token\""
     else
-        fail "implement SKILL.md Phase 3 is missing the size-adaptive marker: \"$token\" (the red-team spawn must document small -> mode: both vs large -> parallel mode: bugs + mode: cleanup)"
+        fail "implement SKILL.md Phase 3 is missing the spawn \"$token\" (small -> lenses: all; large -> one agent per lens)"
     fi
 done
-# The split's mode: cleanup run must be invoked report-only so the gate
-# stays read-only. Match loosely (hyphen or space) so a benign reword does
-# not spuriously fail; the invariant is the report-only instruction, not
-# its spelling.
-if grep -Eqi "report[- ]only" "$implement_skill"; then
-    pass "implement SKILL.md invokes the split mode: cleanup run report-only"
-else
-    fail "implement SKILL.md Phase 3 must invoke the large-diff mode: cleanup run report-only (keeps the parallel gate read-only)"
-fi
 
 # ─────────────────────────────────────────────
 section "19. devloop dogfoods its own config convention"
@@ -675,7 +679,7 @@ section "19. devloop dogfoods its own config convention"
 
 # The README instructs users to commit .devloop/config.md and domain.md, and
 # this repo runs its own loop on itself, so those files must exist here and
-# carry the same schema the examples do. Without them red-team's conventions
+# carry the same schema the examples do. Without them review-impl's conventions
 # angle has nothing to read when it reviews a devloop diff, which is how the
 # gap was found in the first place.
 for own_cfg in ".devloop/config.md" ".devloop/domain.md"; do
@@ -708,7 +712,7 @@ if [[ -f ".devloop/domain.md" ]]; then
     done
 fi
 
-# The root project-rules file is what red-team's conventions angle reads
+# The root project-rules file is what review-impl's conventions angle reads
 # first, and it is the harness-native one (both Claude Code and Codex pick it
 # up). It must point at config.md so the rules keep one canonical home.
 if [[ -f "AGENTS.md" ]]; then
@@ -719,7 +723,7 @@ if [[ -f "AGENTS.md" ]]; then
         fail "AGENTS.md must point at .devloop/config.md so the rules are not duplicated"
     fi
 else
-    fail "AGENTS.md is missing; red-team's conventions angle reads it first"
+    fail "AGENTS.md is missing; review-impl's conventions angle reads it first"
 fi
 
 # The committed config is only reachable if .gitignore un-ignores it.
@@ -730,57 +734,43 @@ else
 fi
 
 # ─────────────────────────────────────────────
-section "20. red-team angle counts stay in sync across docs"
+section "20. review-impl angle counts stay in sync across docs"
 # ─────────────────────────────────────────────
 
-# agents/red-team.md is the source of truth: correctness angles are lettered
-# headers (Angle A..E), cleanup angles are four named headers. Every doc that
-# states a count must match it, or a future angle edit silently leaves the
-# docs claiming the wrong number, the exact drift the self-application eval
-# flagged (README, docs, and SKILL.md all said "5 angles" while a patch made
-# it 6). The counts are derived from red-team.md so the doc checks self-update;
-# the 5+4 pin below is the tripwire that a deliberate angle change trips.
-rt="agents/red-team.md"
-c_angles=$(grep -cE '^\*\*Angle [A-Z]:' "$rt")
-k_angles=$(grep -cE '^\*\*(Reuse|Simplification|Efficiency|Altitude)\.' "$rt")
-total_angles=$((c_angles + k_angles))
+# agents/review-impl.md is the source of truth: correctness angles are
+# lettered headers (Angle A..E), cleanup angles are five named headers. Every
+# doc that states a count must match it, or an angle edit silently leaves the
+# docs claiming the wrong number. The counts are derived from review-impl.md
+# so the doc checks self-update; the 5+5 pin below is the tripwire a
+# deliberate angle change trips.
+ri="agents/review-impl.md"
+c_angles=$(grep -cE '^\*\*Angle [A-Z]:' "$ri")
+k_angles=$(grep -cE '^\*\*(Reuse|Simplification|Efficiency|Altitude|Maintainability)\.' "$ri")
 words=("" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine")
 c_word="${words[$c_angles]:-$c_angles}"
 
-if [[ "$c_angles" -eq 5 && "$k_angles" -eq 4 ]]; then
-    pass "red-team.md defines 5 correctness + 4 cleanup angles"
+if [[ "$c_angles" -eq 5 && "$k_angles" -eq 5 ]]; then
+    pass "review-impl.md defines 5 correctness + 5 cleanup angles"
 else
-    fail "red-team.md now has $c_angles correctness + $k_angles cleanup angles (was 5 + 4); if intended, update this pin AND every doc count (README, docs/llms.txt, skills/implement/SKILL.md, red-team.md mode table)"
-fi
-
-if grep -qE "all $total_angles angles" "$rt"; then
-    pass "red-team.md mode table says \"all $total_angles angles\""
-else
-    fail "red-team.md mode table must say \"all $total_angles angles\" ($c_angles+$k_angles)"
+    fail "review-impl.md now has $c_angles correctness + $k_angles cleanup angles (was 5 + 5); if intended, update this pin AND every doc count (README, skills/implement/SKILL.md, and the website's llms.txt)"
 fi
 
 if grep -qE "\*\*Correctness\*\* \($c_angles angles\)" README.md; then
     pass "README states Correctness ($c_angles angles)"
 else
-    fail "README must say \"**Correctness** ($c_angles angles)\" to match red-team.md"
+    fail "README must say \"**Correctness** ($c_angles angles)\" to match review-impl.md"
 fi
 
 if grep -qE "\*\*Cleanup\*\* \($k_angles angles\)" README.md; then
     pass "README states Cleanup ($k_angles angles)"
 else
-    fail "README must say \"**Cleanup** ($k_angles angles)\" to match red-team.md"
+    fail "README must say \"**Cleanup** ($k_angles angles)\" to match review-impl.md"
 fi
 
-if grep -qE "bugs \($c_angles angles\)" skills/implement/SKILL.md; then
-    pass "implement SKILL.md states bugs ($c_angles angles)"
+if grep -qE "correctness \($c_angles angles\)" skills/implement/SKILL.md; then
+    pass "implement SKILL.md states correctness ($c_angles angles)"
 else
-    fail "skills/implement/SKILL.md must say \"bugs ($c_angles angles)\" to match red-team.md"
-fi
-
-if grep -qE "across $c_word angles" docs/llms.txt; then
-    pass "docs/llms.txt says \"across $c_word angles\""
-else
-    fail "docs/llms.txt must say \"across $c_word angles\" to match red-team.md"
+    fail "skills/implement/SKILL.md must say \"correctness ($c_angles angles)\" to match review-impl.md"
 fi
 
 # ─────────────────────────────────────────────
@@ -841,6 +831,169 @@ if python3 -c "import json; s={json.load(open(p)).get('description') for p in ['
 else
     fail "description must be verbatim identical across all three manifests (single canonical blurb)"
 fi
+
+# ─────────────────────────────────────────────
+section "22. /spec check mode is documented"
+# ─────────────────────────────────────────────
+
+# /spec has two modes: the interview (the default) and check mode, which
+# validates an existing design doc instead of writing a new spec. Check mode
+# hands the design doc itself to /plan as spec_doc, so both halves are pinned.
+if grep -q "Check mode" "$spec_skill"; then
+    pass "spec SKILL.md documents check mode"
+else
+    fail "spec SKILL.md must document check mode (validating an existing design doc)"
+fi
+if has_text "$spec_skill" "design doc's path as its \`spec_doc\`"; then
+    pass "spec SKILL.md check mode hands the design doc to /plan as spec_doc"
+else
+    fail "spec SKILL.md check mode must name the design doc as the spec_doc /plan records"
+fi
+
+# ─────────────────────────────────────────────
+section "23. /plan reviews before its checkpoint and carries the v4 rules"
+# ─────────────────────────────────────────────
+
+# The gate runs before the plan is shown, so the user approves a reviewed
+# plan; an edit at the checkpoint re-runs the gate. Each marker below pins
+# one rule of that flow so a rewrite can't drop it silently.
+if grep -qE '^## Phase 4: Plan review' "$plan_skill" && grep -qE '^## Phase 5: Checkpoint' "$plan_skill"; then
+    pass "plan SKILL.md runs the review gate (Phase 4) before the checkpoint (Phase 5)"
+else
+    fail "plan SKILL.md must have '## Phase 4: Plan review...' followed by '## Phase 5: Checkpoint...'"
+fi
+plan_markers=(
+    "Any tracker edit at the checkpoint"
+    "Self-check before the gate"
+    "| Fast lane"
+    "\`proof\`"
+    "Autonomy"
+    "design doc"
+)
+for marker in "${plan_markers[@]}"; do
+    if has_text "$plan_skill" "$marker"; then
+        pass "plan SKILL.md names: $marker"
+    else
+        fail "plan SKILL.md is missing: $marker"
+    fi
+done
+if grep -qF "\`proof\`" skills/plan/references/tracker-schema.md; then
+    pass "tracker-schema.md documents the proof field"
+else
+    fail "tracker-schema.md must document the \`proof\` field"
+fi
+if has_text agents/review-plan.md "previous report" && has_text agents/review-plan.md "design doc's recorded decisions"; then
+    pass "review-plan.md takes the previous report and binds design-doc decisions"
+else
+    fail "review-plan.md must accept a previous report and bind a design doc's recorded decisions"
+fi
+if grep -q "## Autonomy" README.md && grep -q "review-and-finish.md" README.md; then
+    pass "README documents the Autonomy section and links its rules"
+else
+    fail "README must describe the optional ## Autonomy section and link review-and-finish.md"
+fi
+raf="skills/implement/references/review-and-finish.md"
+for marker in "Review rounds" "the first one included" "default 3" "default none" "a check or test that still fails after a fix attempt" "falls back to 3"; do
+    if has_text "$raf" "$marker"; then
+        pass "review-and-finish.md states: $marker"
+    else
+        fail "review-and-finish.md must state the Autonomy rule: $marker"
+    fi
+done
+
+# ─────────────────────────────────────────────
+section "24. /implement review, checkpoint 2, finish and close are documented"
+# ─────────────────────────────────────────────
+
+# review-and-finish.md is the one home for what happens around the code
+# review; implement SKILL.md links it. Each marker pins one rule.
+for marker in "lenses: all" "## Review protocol" "At a convergence checkpoint, write" "with no rounds left, don't revise for a warning" "or whose reported lines a fix touched" "<feature>-code-review.md" "no plan or spec change is waiting" "no_change_needed" "The count lives in the session" "## Edits at a checkpoint" "doesn't use up Review rounds" "before editing the tracker" "goes through Converge" "ran after the last code change" "Starting a named command" "stops the run: report it as" "is skipped with a note" "## Fast lane" "## Pre-review checks" "## Finding policy" "## Diff size" "## Checkpoint 2" "## Finish steps and close" "again with the previous report" "any FAIL gives FAIL" "No edits while reviewers run" "quality_verification.final" "done-trackers" "state the request and the proof test"; do
+    if has_text "$raf" "$marker"; then
+        pass "review-and-finish.md has: $marker"
+    else
+        fail "review-and-finish.md is missing: $marker"
+    fi
+done
+require_markers "$raf" "A spec change always goes to the user" "falls back to" "without \`auto\` or \`ask\` falls back" "is a spec change and goes to the user" "a passing re-gate under" "its open warnings and set-aside findings"
+require_markers "$implement_skill" "automatic convergences per session" "A verdict from a self-check" "Checkpoint 2 lists every convergence that ran" "doesn't count toward the limit" "while any spec change waits"
+if has_text "$implement_skill" "With \`Convergence: auto\` (the" && has_text "$raf" "**Convergence**: \`auto\` (default)"; then
+    pass "convergence is set by the Convergence setting (auto by default)"
+else
+    fail "implement SKILL.md and review-and-finish.md must describe the Convergence setting (auto by default, ask)"
+fi
+if has_text "$raf" "At checkpoint 1 or a convergence checkpoint"; then
+    fail "review-and-finish.md must not give checkpoint 1 and a convergence checkpoint one rule: a convergence edit keeps plan_review at FAIL until the user approves"
+else
+    pass "review-and-finish.md keeps the convergence-checkpoint edit rule apart from checkpoint 1"
+fi
+if grep -q "review-and-finish.md" "$implement_skill"; then
+    pass "implement SKILL.md links review-and-finish.md"
+else
+    fail "implement SKILL.md must link references/review-and-finish.md"
+fi
+if has_text "$implement_skill" "diff-size rule"; then
+    pass "implement SKILL.md sizes the code review by review-and-finish.md's diff-size rule"
+else
+    fail "implement SKILL.md must size the code review by review-and-finish.md's diff-size rule"
+fi
+if has_text agents/review-impl.md "review is expected and is not a finding"; then
+    pass "review-impl.md says an empty quality_verification during the gate is not a finding"
+else
+    fail "review-impl.md must say an empty quality_verification during the gate is not a finding (it is written after the gate)"
+fi
+for ex in README.md .devloop/config.md examples/*/config.md; do
+    if grep -q "Pre-review checks" "$ex" && grep -q "done-trackers" "$ex"; then
+        pass "$ex shows the pre-review checks and done-trackers forms"
+    else
+        fail "$ex must show the 'Pre-review checks' list and the 'done-trackers' setting"
+    fi
+done
+
+# ─────────────────────────────────────────────
+section "25. Runtime verification is optional, recorded and shown at checkpoint 2"
+# ─────────────────────────────────────────────
+
+require_markers "$raf" "## Runtime verification" "Verify recipe" "Test-only and docs-only diffs" \
+    "the runtime verification verdict" "not an approval" "including a fix for a FAIL" \
+    "latest verification run came after the last code change" "Save the record with the code report"
+if grep -q "Verify recipe" README.md; then
+    pass "README.md names the Verify recipe setting"
+else
+    fail "README.md must name the 'Verify recipe' setting"
+fi
+# The recipe is read from Build & Test Commands, so a config that puts it
+# elsewhere teaches a placement the rule doesn't look at.
+for ex in .devloop/config.md examples/*/config.md; do
+    if awk '/^## /{inb=($0 ~ /^## Build & Test Commands/)} inb && /\*\*Verify recipe\*\*/{f=1} END{exit !f}' "$ex"; then
+        pass "$ex puts the Verify recipe under Build & Test Commands"
+    else
+        fail "$ex must put the 'Verify recipe' list under Build & Test Commands"
+    fi
+done
+
+# ─────────────────────────────────────────────
+section "26. review-impl reports findings as a flat JSON list"
+# ─────────────────────────────────────────────
+
+# The findings list is a per-run contract the skills join and attach
+# outcomes to: the keys are pinned here and the example must parse.
+if [[ $(grep -c '^```json$' agents/review-impl.md) -ge 1 ]]; then
+    pass "review-impl.md has a JSON findings example"
+    validate_json_blocks "agents/review-impl.md"
+else
+    fail "review-impl.md must show its findings as a fenced JSON block"
+fi
+for key in file line lens category confidence introduced prior summary failure_scenario fix also_at verdict scope_notes findings; do
+    if grep -q "\"$key\"" agents/review-impl.md; then
+        pass "review-impl.md JSON has key: $key"
+    else
+        fail "review-impl.md JSON is missing key: $key"
+    fi
+done
+require_markers "$raf" '`outcome`' "A lens not re-run counts with its last verdict" "overlap through" \
+    "**Conventions**" "stays in the session and is shown at checkpoint 2"
+require_markers agents/review-impl.md "Different mistakes stay separate" "of the lenses you ran"
+require_markers "$plan_skill" "**Fast-lane check.**" "no tracker exists for this feature" "write no tracker" "did not come back from the fast lane"
 
 # ─────────────────────────────────────────────
 # Summary

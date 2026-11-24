@@ -1,17 +1,17 @@
 {
-  "name": "kashzod",
+  "name": "onekashlabs",
   "interface": {
-    "displayName": "KashZod"
+    "displayName": "OneKash Labs"
   },
   "plugins": [
     {
       "name": "devloop",
       "source": {
         "source": "url",
-        "url": "https://github.com/KashZod/devloop.git"
+        "url": "https://github.com/OneKashLabs/devloop.git"
       },
       "category": "Productivity",
-      "description": "Spec, plan, implement, review: a test-driven development loop for AI coding agents. Three commands map to three gates, one per command (plus a convergence back-edge where /implement re-runs the plan gate): /spec (WHAT, spec validation), /plan (HOW, plan review), /implement (BUILD, conformance + adversarial red-team review).",
+      "description": "Spec, plan, implement, review: a test-driven development loop for AI coding agents. /spec clarifies what to build and validates the spec. /plan decides how, then runs a plan review and a checkpoint. /implement builds with TDD, then runs a code review (conformance, correctness and cleanup lenses) and a checkpoint, and re-runs the plan review when a finding shows the plan was wrong.",
       "policy": {
         "installation": "AVAILABLE"
       }

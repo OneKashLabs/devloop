@@ -1,6 +1,6 @@
 # .devloop/domain.md example - Android / Kotlin / Compose
 
-Example configuration for an Android project using Kotlin, Jetpack
+Example domain notes for an Android project using Kotlin, Jetpack
 Compose, Room, and Hilt.
 
 ---
@@ -29,7 +29,7 @@ UI (Jetpack Compose) -> ViewModel -> Domain Layer (Coordinators, Readers) -> Roo
 - [ ] Timezone handling: UTC storage, local display, DST transitions
 - [ ] Configuration changes: state survives rotation (ViewModel StateFlow)
 - [ ] Permission model: runtime permission requests and denial handling
-- [ ] Deep links: navigation to correct screen from external intents
+- [ ] Deep links: external intents open the screen they name
 - [ ] Notifications: channel setup, permission (API 33+), tap action
 - [ ] Background work: WorkManager constraints and retry behavior
 - [ ] ProGuard/R8: keep rules for reflection-based libraries

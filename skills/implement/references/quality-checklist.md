@@ -1,232 +1,127 @@
-# 8-Point Quality Verification Checklist
+# Quality checklist
 
-Run this checklist in `/implement` Phase 3 (Quality Verification), after
-all implementation chunks are complete. Each point should be verified
-with specific evidence (test results, grep output, build logs).
+These six concerns are the vocabulary `review-plan` and `review-impl`
+use, and the self-check you run when a review agent can't run. When the
+self-check reviews code (`/implement` Phase 3), use sections 1-6. When it
+reviews a plan (`/plan` Phase 4, or a convergence re-gate in
+`/implement`), use each concern's plan-time column below and add TDD
+quality from `agents/review-plan.md`. Don't run it in addition to an
+agent that ran. Verify each point with specific evidence (test results,
+grep output, build logs). Each check appears under one concern only.
 
 ## Shared concern vocabulary
 
-devloop uses one concern vocabulary across the loop so the reviewers
-don't drift into three overlapping dialects. The seven concerns below
-(points 1-7) are the shared set; the eighth differs by phase because the
-target differs:
+The concerns fall in three groups, checked in this order: does the change
+do what was asked, does it hold up, and can it be maintained.
 
-| # | Shared concern | `review-plan` (plan-time) | Phase 3 (code-time) |
+| # | Concern | `review-plan` (plan-time) | Code-time |
 |---|---|---|---|
-| 1 | Completeness | every criterion has a chunk (+ traceability) | every criterion is met |
-| 2 | Correctness | the plan's assumptions hold | data/logic is correct |
-| 3 | Gaps (Functional) | no dead code / missing wiring planned | none introduced |
-| 4 | Standards | plan follows conventions | code follows conventions |
-| 5 | Regression | all affected tests are in chunks | suite still green |
-| 6 | Robustness | error/empty paths are planned | error/empty paths hold |
-| 7 | Gaps (Architectural) | boundaries respected in the plan | respected in the code |
-| 8 | *(phase-specific)* | **TDD Quality** of the plan | **Blindspots** in the code |
+| 1 | Completeness | every criterion has a chunk and every chunk a criterion; every new item has a consumer in a chunk | every criterion is met and wired; no unrelated changes |
+| 2 | Correctness | the plan's assumptions about the code hold | data and logic are correct |
+| 3 | Regression | every affected test and caller of a changed signature is in a chunk | the suite still passes |
+| 4 | Robustness | error, empty, concurrent and partial-failure paths are planned | those paths hold and data stays consistent |
+| 5 | Blindspots | security, privacy and the platform checks are planned where the feature touches them | they hold in the code |
+| 6 | Maintainability | the plan follows the project's rules and boundaries, and names the config values, doc updates and dependency pins | the code follows them and leaves nothing stale |
 
-`review-plan` applies concerns 1-7 to the plan plus TDD Quality;
-`review-impl` verifies conformance/acceptance (a narrower slice, see its
-own file); this checklist applies 1-7 to the code plus Blindspots. Same
-words, same order, different target.
+`review-plan` applies concerns 1-6 to the plan and adds TDD quality.
+`review-impl` applies them to the code through its lenses (see its own
+file): conformance covers 1 and 3, correctness covers 2, 4 and 5, and
+cleanup covers 6. The conventions angle, which runs in every lens, checks
+the project's written rules and the config's blindspot list.
 
 ---
 
 ## 1. Completeness
 
-Verify every acceptance criterion is met.
-
-**Self-evaluation warning:** This is where generators most often
-over-report. Cross-check each criterion against the tracker's
-`acceptance_criteria` array, don't rely on memory of what was
-planned. If using a subagent evaluator, have it verify independently.
-
-**How to check:**
-
-- List all acceptance criteria from the tracker (not from memory)
-- For each criterion, identify the code that implements it
-- For each criterion, identify the test that verifies it
-- Mark any criteria that rely on manual testing (UI changes)
-
-**Template:**
-
-```markdown
-- [ ] Criterion 1: [describe] - verified by [test or file:line]
-- [ ] Criterion 2: [describe] - verified by [test or file:line]
-```
-
-**Common misses:**
-
-- Feature works for happy path but edge cases aren't covered
-- New parameter added but not wired at all call sites
-- Test exists but doesn't assert the right thing
-
----
+- List every acceptance criterion from the tracker's `acceptance_criteria`
+  arrays, not from memory
+- For each, name the code that implements it and the test that verifies
+  it, and check the test asserts the criterion:
+  `- [ ] Criterion: [describe] - verified by [test or file:line]`
+- Mark criteria that rely on manual testing (UI changes)
+- Grep, including files outside the chunk list: new parameters and
+  callbacks are wired at every call site (not passed an empty or no-op
+  handler), and no reference to a removed type is left
+- The diff holds no change unrelated to the criteria
 
 ## 2. Correctness
 
-Verify data mapping, conversions, and logic are correct.
+- Review each data transformation (entity -> UI model), including enum
+  and constant values that cross layers
+- Check boundary values (0, -1, MAX_VALUE, null, empty), off-by-one in
+  ranges, and nullable fields treated as non-null (or the reverse)
+- Check timezone handling, numeric precision (type widths, float vs
+  integer) and units (milliseconds vs seconds, bytes vs kilobytes)
 
-**How to check:**
+## 3. Regression
 
-- Review each data transformation (entity -> UI model)
-- Check boundary values (0, -1, MAX_VALUE, null, empty)
-- Verify timezone handling if applicable
-- Check numeric precision (type widths, float vs integer, units)
+Run the project's test, build, and lint commands (see `.devloop/config.md`)
+and record: total test count (should not decrease), build and lint
+warnings (should not increase), and pre-existing flaky tests (note, don't
+block). A failure in a test class this feature did not modify is likely
+pre-existing: run it in isolation to confirm.
 
-**Common misses:**
+## 4. Robustness
 
-- Off-by-one errors in range calculations
-- Nullable field treated as non-null (or vice versa)
-- Enum/constant value mismatches between layers
-- Unit confusion (milliseconds vs seconds, bytes vs kilobytes)
+- Empty data source: an empty-state message, no crash
+- Permission/auth errors and network timeouts: an error state, no crash
+- Errors reach the user or the caller and aren't swallowed
+- Resources cleaned up on teardown/unmount/dispose; async operations
+  cancelled on scope cancellation
+- Concurrent access: no race conditions in shared state, rapid repeated
+  input, or parallel operations
+- Data integrity: a write that fails partway leaves the data consistent
+  (no lost, duplicated or half-written records)
+- Config/env change: state survives (if expected to)
+- Large data: no performance cliff or resource exhaustion
 
----
+## 5. Blindspots
 
-## 3. Gaps (Functional)
+Self-assessment is weakest here; the `review-impl` correctness lens
+covers it in a fresh context. Always check:
 
-Verify no broken references, missing wiring, or orphaned code.
+- [ ] Security: input validation, injection, auth boundaries
+- [ ] Privacy: secrets and personal data stay out of logs, error
+  messages, commits and fixtures; the feature collects or shares only
+  the data the spec allows
 
-**Self-evaluation warning:** Generators tend to miss gaps in files
-they didn't directly modify. Always grep, don't rely on recall of
-which files reference the changed code.
+Then the platform blindspots in `.devloop/config.md` §Blindspots to Check
+(for example web: CORS, CSP, XSS, accessibility; mobile: dark theme, RTL,
+screen sizes, permissions; backend: rate limiting, pagination,
+idempotency, timeouts; CLI: signals, stdin/stdout encoding, exit codes).
 
-**How to check:**
+For each blindspot, note what could go wrong, its likelihood
+(low/medium/high), the mitigation (if any), and whether manual testing is
+needed.
 
-```bash
-# Check for references to old/removed types
-grep -r "OldTypeName" src/
+## 6. Maintainability
 
-# Check for TODO/FIXME left behind
-grep -r "TODO\|FIXME" src/ --include="*.ext"
+How easily the code can be changed, tested and repaired later. Report
+only what the diff shows: a project rule it breaks, a precedent in the
+surrounding code it ignores, or a concrete later cost.
 
-# Run linter to catch unused imports/variables
-# (use project's lint command from .devloop/config.md)
-```
-
-**Common misses:**
-
-- Old type referenced in a file outside the chunk list
-- Import statement left behind after removing usage
-- Comment referencing "Phase 2" or "TODO" placeholder
-- Callback parameter added but caller passes empty/noop handler
-
----
-
-## 4. Standards
-
-Verify implementation follows project standards and
-platform conventions.
-
-**How to check:**
-
-- Cross-reference project guidelines (`CLAUDE.md`, `AGENTS.md`, or equivalent)
-- Verify framework conventions (component patterns, naming)
-- Check naming conventions (language style, package/module structure)
-- Verify architecture layers are respected
-
-**Project-specific standards:** See `.devloop/config.md` §Standards to Verify.
-
----
-
-## 5. Regression
-
-Verify existing functionality isn't broken.
-
-**How to check:**
-
-Run the project's test, build, and lint commands (see `.devloop/config.md`).
-
-**Evidence to record:**
-
-- Total test count (should not decrease)
-- Any pre-existing flaky tests (note but don't block)
-- Build warnings count (should not increase)
-- Lint warnings (should not increase)
-
-**Distinguishing pre-existing vs new failures:**
-Check if the failing test class was modified in this feature.
-If not, it's likely pre-existing. Run the failing test in
-isolation to confirm.
-
----
-
-## 6. Robustness
-
-Verify error handling, empty states, and cleanup.
-
-**How to check:**
-
-- What happens when the data source returns empty?
-- What happens on permission/auth errors?
-- What happens on network timeout?
-- Are resources cleaned up on teardown/unmount/dispose?
-- Are async operations cancelled on scope cancellation?
-
-**Common scenarios:**
-
-- Empty list: UI shows appropriate message, no crash
-- Auth error: Feature shows error state, no crash
-- Concurrent access: No race conditions in shared state
-- Config/env change: State survives (if expected to)
-- Large data: No performance cliff, no resource exhaustion
-
----
-
-## 7. Gaps (Architectural)
-
-Verify abstraction boundaries are respected.
-
-**How to check:**
-
-```bash
-# Example: UI should NOT import data layer directly
-grep -r "import.*data\." src/ui/ --include="*.ext"
-
-# Example: Controllers should NOT import DB layer
-grep -r "import.*db\." src/controllers/ --include="*.ext"
-```
-
-**Architecture rules to verify (see .devloop/config.md):**
-
-- Layer boundaries: UI -> Domain -> Data (no shortcuts)
-- Test doubles match convention (fakes vs mocks)
-- Dependency injection: no manual instantiation of services
-- Type safety: sealed types where expected, not string enums
-
----
-
-## 8. Blindspots
-
-Verify edge cases that automated tests may miss.
-
-**Self-evaluation warning:** This is the hardest point to
-self-assess honestly. Generators naturally focus on what they
-built, not what they missed. The `red-team` agent running in
-parallel (see Phase 3 Quality Verification) catches what
-self-evaluation misses, it
-reviews the diff adversarially in a fresh context, so it isn't
-anchored on what you intended to build.
-
-**Always check:**
-
-- [ ] **Security**: Input validation, injection, auth boundaries
-- [ ] **Concurrency**: Race conditions, rapid clicks, parallel ops
-- [ ] **Error propagation**: Errors surface to user, not swallowed
-- [ ] **Resource cleanup**: Memory, file handles, connections
-- [ ] **Future migration**: Will this design need breaking changes
-  later? Document the migration path
-
-**Platform-specific blindspots (see .devloop/config.md §Blindspots to Check):**
-
-Common examples across platforms:
-- Web: CORS, CSP, XSS, accessibility, browser compat
-- Mobile: Dark theme, RTL layout, screen sizes, permissions
-- Backend: Rate limiting, pagination, idempotency, timeouts
-- CLI: Signal handling, stdin/stdout encoding, exit codes
-
-**How to document:**
-
-For each blindspot, note:
-
-1. What could go wrong
-2. Likelihood (low/medium/high)
-3. Mitigation (if any)
-4. Whether manual testing is needed
+- Project rules: the guidelines (`CLAUDE.md`, `AGENTS.md`, or
+  equivalent), the framework's conventions, and `.devloop/config.md`
+  §Standards to Verify
+- Boundaries: grep for imports that cross a layer (for example, UI
+  importing the data layer), and check the architecture rules in
+  `.devloop/config.md`, including the test-double convention; services
+  are passed in, not built by the code that uses them, where the project
+  injects dependencies; types follow the project's type-safety rules
+  (for example a closed set of types instead of string values)
+- Leftovers: dead code, imports left after removing a usage, and
+  TODO/FIXME or placeholder comments; run the project's lint command for
+  unused imports and variables
+- Stale text: comments, docstrings and docs the change makes wrong are
+  updated; a new public interface has its contract written down
+- Configuration: a value that differs by environment or deployment
+  (address, limit, timeout, credential) comes from configuration, not a
+  literal in code
+- Dependencies: a new dependency follows the project's pinning rule; a
+  change to a public interface follows the project's versioning rule;
+  a breaking change, or a design that will need one later, records its
+  migration path
+- Error messages: an error says what failed and on which input
+- Consistency: naming and structure match how the surrounding code does
+  the same job. Without a rule or a precedent to point at, don't report
+  naming or structure
